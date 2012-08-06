@@ -1,4 +1,5 @@
 from spider import *
+from proxy import *
 from multiprocessing import Pool
 
 proxy = Proxy('http', '79.170.50.25', 80)
@@ -6,7 +7,8 @@ proxy = Proxy('http', '79.170.50.25', 80)
 urls = ('http://docs.python.org/library/multiprocessing',
 	'http://stackoverflow.com/questions/5620263/using-an-http-proxy-python',
 	'https://github.com/suminb/spider',
-	'http://news.cnet.com/')
+	'http://news.cnet.com/',
+	'http://www.python.org/dev/peps/pep-0257/')
 
 def f(url):
 	task = FetchTask(url)

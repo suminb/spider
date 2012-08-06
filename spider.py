@@ -1,4 +1,4 @@
-
+from proxy import *
 import urllib2
 
 class FetchTask:
@@ -14,7 +14,7 @@ class FetchTask:
 
     @staticmethod
     def open_url(url, proxy=None):
-        if proxy != None:
+        if isinstance(proxy, Proxy):
             opener = urllib2.build_opener(proxy.proxy_handler)
         else:
             opener = urllib2.build_opener()
@@ -25,39 +25,29 @@ class FetchTask:
     @staticmethod
     def fetch_url(url, proxy=None):
 
-        # TODO: start timer
+        start_time = time.time()
+        content = None
+        succeeded = False
 
-        f = FetchTask.open_url(url, proxy)
-        content = f.read().decode('utf-8')
-        f.close()
+        try:
+            f = FetchTask.open_url(url, proxy)
+            content = f.read().decode('utf-8')
+            f.close()
+            succeeded = True
+        except Exception, e:
+            raise e
+        finally:
+            end_time = time.time()
+            time_elapsed = long((end_time - start_time) * 1000)
 
-        # TODO: end timer
-        # TODO: notify 'proxy' result
+            if isinstance(proxy, Proxy):
+                proxy.report_status(succeeded, time_elapsed)
 
         return content
 
 class TaskDispatcher:
     def dispatch(self, task):
         """
-        task: an instance of FetchTask
+        task -- an instance of FetchTask
         """
         raise Exception('Not implemented')
-
-class Proxy:
-
-    def __init__(self, type_, host, port):
-        """
-        type: 'http' or 'https'
-        host: domain name or IP address of proxy server
-        port: port number
-        """
-        self.type = type_
-        self.host = host
-        self.port = port
-
-    @property
-    def proxy_handler(self):
-        proxy_url = '%s://%s:%d' % (self.type, self.host, self.port)
-        return urllib2.ProxyHandler({'http': proxy_url})
-
-        
