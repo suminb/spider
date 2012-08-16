@@ -34,9 +34,13 @@ class Database:
     def close(self):
         self.conn.close()
 
-    def execute(self, query, commit=True):
+    def execute(self, query, params, commit=True):
+        """
+        query -- An SQL statement
+        params -- List type instance
+        """
         curs = self.conn.cursor()
-        curs.execute(query)
+        curs.execute(query, params)
 
         if commit:
             self.conn.commit()
@@ -48,26 +52,43 @@ class Database:
     # Spider specific functions
     #
 
-    def has_url(self):
+    def has_url(self, url):
         curs = self.cursor
-        curs.execute("SELECT * FROM url WHERE url=?", url)
+        curs.execute("SELECT * FROM document WHERE url=?", (url,))
         row = curs.fetchone()
 
         return row != None
 
-    def insert_url(self, url, mimetype, timestamp=datetime.datetime.now(), commit=True):
-        curs = self.cursor
-        curs.execute("INSERT INTO url VALUES (?, ?, ?)", (url, mimetype, timestamp))
+    def insert_urls(self, urls):
+        for url in urls:
+            try:
+                self.execute("INSERT INTO document (url) VALUES (?)", (url,), False)
+            except sqlite3.IntegrityError as e:
+                # Simply ignore it if url already exists
+                pass
+        self.commit()
 
-        if commit: self.commit()
+    def insert_document(self, url, mimetype, timestamp, content, commit=True):
+        self.execute("INSERT INTO document VALUES (?, ?, ?, ?)", (url, mimetype, timestamp, content), commit)
+
+    def update_document(self, url, mimetype, timestamp, content, commit=True):
+        self.execute("UPDATE document SET mime_type=?, last_fetched=?, content=? WHERE url=?", (mimetype, timestamp, content, url), commit)
+
+    def fetch_document(self, url):
+        curs = self.cursor
+        curs.execute("SELECT * FROM document WHERE url=?", (url,))
+
+        return curs.fetchone()
+
+    def export(self):
+        """Export documents to files."""
+        pass
 
 
 class FetchTask:
     
     USER_AGENT = 'Spider v0.1'
     REQUEST_TIMEOUT = 10
-
-    DB_FILE_NAME = 'spider.db'
 
     def __init__(self, url):
         self.url = url
@@ -88,19 +109,25 @@ class FetchTask:
     @staticmethod
     def fetch_url(url, proxy=None, db=None):
 
-        if isinstance(db, Database):
-            if db.has_url(url):
-                return None
-
         start_time = time.time()
         content = None
+        has_url = False
         succeeded = False
+        used_proxy = False
 
         try:
-            f = FetchTask.open_url(url, proxy)
-            content = f.read().decode('utf-8')
-            f.close()
-            succeeded = True
+            if isinstance(db, Database):
+                if db.has_url(url):
+                    doc = db.fetch_document(url)
+                    content = doc[3]
+                    has_url = True
+
+            if content == None:
+                f = FetchTask.open_url(url, proxy)
+                content = f.read().decode('utf-8')
+                f.close()
+                succeeded = True
+                used_proxy = True
 
         except Exception, e:
             raise e
@@ -108,11 +135,14 @@ class FetchTask:
             end_time = time.time()
             time_elapsed = long((end_time - start_time) * 1000)
 
-            if isinstance(proxy, Proxy):
+            if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
             if isinstance(db, Database):
-                db.insert_url(url, '')
+                if has_url:
+                    db.update_document(url, '', datetime.datetime.now(), content)
+                else:
+                    db.insert_document(url, '', datetime.datetime.now(), content)
 
         return content
 

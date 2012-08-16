@@ -4,8 +4,18 @@
 
 CREATE TABLE document (
 	url VARCHAR(255),
-	mine_type VARCHAR(255),
+	mime_type VARCHAR(255),
 	last_fetched TIMESTAMP,
 	content TEXT,
 	PRIMARY KEY (url)
+);
+
+CREATE TABLE proxy (
+	protocol VARCHAR(16),
+	address VARCHAR(255),
+	port INTEGER,
+	last_used TIMESTAMP,
+	response_time INTEGER,
+	status INTEGER,
+	PRIMARY KEY (protocol, address, port)
 );

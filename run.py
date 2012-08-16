@@ -19,13 +19,20 @@ def hash_url(url):
 	return hashlib.sha1(url).hexdigest()
 
 def fetch(url):
+	print "Fetching %s... via %s" % (url[:40], proxy)
+
 	task = FetchTask(url)
 	content = task.run(proxy, db)
+
 	doc = Document(content)
-	
-	file_name = 'docs/%s.html' % hash_url(url)
-	with open(file_name, 'w') as f:
-		f.write(content.encode('utf-8'))
+	urls = doc.extract_urls(r"http://messages.finance.yahoo.com/[\/\w %=;&\.\-\+\?]*\/?")
+
+	db.insert_urls(urls)
+
+def fetch_unfetched_urls(db):
+	curs = db.cursor
+	curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT 100")
+	return map(lambda u: u[0], curs.fetchall())
 
 # This is about 2.5 times faster than the non-parallel method
 #pool = Pool(processes=4)
@@ -36,4 +43,10 @@ def fetch(url):
 #doc = Document(open('sample.html').read())
 #print doc.extract_urls()
 
-fetch("http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_L/threadview?bn=76474&tid=35875&mid=35912")
+def main():
+	urls = fetch_unfetched_urls(db)
+	for url in urls:
+		fetch(url)
+
+if __name__ == '__main__':
+	main()

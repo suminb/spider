@@ -13,6 +13,9 @@ class Proxy:
         self.host = host
         self.port = port
 
+    def __str__(self):
+        return "%s://%s:%d" % (self.type, self.host, self.port)
+
     @property
     def proxy_handler(self):
         """Simply returns a ProxyHandler instance."""
@@ -24,5 +27,8 @@ class Proxy:
         succeeded -- True or False
         time_elapsed -- Time took to complete the HTTP request via proxy in milliseconds
         """
-        print succeeded
-        print time_elapsed
+        #print succeeded
+        #print time_elapsed
+
+        if succeeded:
+            print 'Fetching via proxy was successful.'
