@@ -1,11 +1,11 @@
 from spider import *
 from proxy import *
-from multiprocessing import Pool, Process, Lock, Semaphore, Queue
+from multiprocessing import Pool, Process, Lock, Semaphore, Queue, Manager
 
 import random
 
 DB_URL = 'spider.db'
-URL_PATTERN = r"http://messages.finance.yahoo.com/Stocks[\/\w %=;&\.\-\+\?]*\/?"
+URL_PATTERN = r"http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J[\/\w %=;&\.\-\+\?]*\/?"
 
 #proxy = Proxy('http', '79.170.50.25', 80)
 
@@ -13,7 +13,6 @@ proxy_list = (
     ('http', '46.21.155.222', 3128),
     ('http', '189.84.112.118', 3128),
     ('http', '190.145.45.246', 3128),
-    ('http', '190.121.143.242', 8080),
     ('http', '177.38.178.25', 3128),
     ('http', '190.184.215.7', 8080),
     ('http', '106.187.35.52', 8080),
@@ -47,7 +46,7 @@ def fetch_url(url, thread_seq=0):
                     db.insert_document(document)
 
                 urls = document.extract_urls(URL_PATTERN)
-                print "Th:%d: Found %d URLs in %s." % (thread_seq, len(urls), url[:40])
+                print "Th:%d: Found %d URLs in %s." % (thread_seq, len(urls), url)
                 db.insert_urls(urls)
 
             except urllib2.URLError as e:
@@ -67,24 +66,12 @@ def fetch_unfetched_urls(limit):
         
         return map(lambda u: u[0], curs.fetchall())
 
-def fetch_urls(urls, urls_count, thread_seq, lock, queue):
-    #for url in urls:
+def fetch_urls(urls, urls_count, thread_seq):
 
-    print 'Th%d: %s' % (thread_seq, id(urls))
-
-    while len(urls) > 0:
-    #while not queue.empty():
-        # Python lists are thread-safe themselves
-        
-        lock.acquire()
-        url = urls.pop(thread_seq)
-        #url = queue.get()
-        print 'Th%d: (%d/%d)' % (thread_seq, len(urls), urls_count)
-    
-
+    for url in urls:
+        #print 'Th%d: (%d/%d)' % (thread_seq, len(urls), urls_count)
         fetch_url(url, thread_seq)
 
-        lock.release()
 
 # This is about 2.5 times faster than the non-parallel method
 #pool = Pool(processes=4)
@@ -98,39 +85,21 @@ def fetch_urls(urls, urls_count, thread_seq, lock, queue):
 def main():
 
     # number of processes
-    n = 4
+    n = 6
 
-    lock = Lock()
-
-    urls = fetch_unfetched_urls(15*n)
-
-    queue = Queue()
-    for url in urls:
-        queue.put(url)
+    urls = fetch_unfetched_urls(100*n)
     
     p = [None,]*n
     for i in range(n):
-        #p[i] = Process(target=fetch_urls, args=(urls[i*n:(i+1)*n], i))
-
-        # http://docs.python.org/library/multiprocessing.html#sharing-state-between-processes
-        p[i] = Process(target=fetch_urls, args=(urls, len(urls), i, lock, queue))
+        partial_urls = urls[i*n:(i+1)*n]
+        p[i] = Process(target=fetch_urls, args=(partial_urls, len(partial_urls), i))
         p[i].start()
     for i in range(n):
         p[i].join()
 
-
-    # for document in documents:
-    #   has_url = db.has_url(document.url)
-
-    #   if has_url:
-    #       db.update_document(document)
-    #   else:
-    #       db.insert_document(document)
-
 if __name__ == '__main__':
     main()
-    #url = "http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_L/threadview?m=tm&bn=76474&tid=35845&mid=35874&tof=9&frt=2"
-    #url = "http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_L/threadview?m=mm&bn=76474&tid=35875&mid=35935&tof=-1&rt=2&frt=2&off=1"
+    #url = "http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J/threadview?bn=10073&tid=443633&mid=443634"
     #document = fetch_url(url)
 
     # if db.has_url(url):
