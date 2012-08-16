@@ -2,4 +2,10 @@
 # Spider database scheme
 #
 
-CREATE TABLE url (url VARCHAR(255), mine_type VARCHAR(255), last_fetched TIMESTAMP);
+CREATE TABLE document (
+	url VARCHAR(255),
+	mine_type VARCHAR(255),
+	last_fetched TIMESTAMP,
+	content TEXT,
+	PRIMARY KEY (url)
+);
