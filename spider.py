@@ -106,7 +106,7 @@ class Database:
 class FetchTask:
     
     USER_AGENT = 'Spider v0.1'
-    REQUEST_TIMEOUT = 10
+    REQUEST_TIMEOUT = 15
 
     def __init__(self, url):
         self.url = url
@@ -139,8 +139,10 @@ class FetchTask:
             f.close()
             succeeded = True
             used_proxy = True
+
         except Exception as e:
             raise e
+
         finally:
             end_time = time.time()
             time_elapsed = long((end_time - start_time) * 1000)

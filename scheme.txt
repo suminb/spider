@@ -6,6 +6,7 @@ CREATE TABLE document (
 	url VARCHAR(255),
 	mime_type VARCHAR(255),
 	last_fetched TIMESTAMP,
+	proxy_id INTEGER,
 	content TEXT,
 	PRIMARY KEY (url)
 );
