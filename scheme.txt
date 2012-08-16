@@ -1,0 +1,5 @@
+#
+# Spider database scheme
+#
+
+CREATE TABLE url (url VARCHAR(255), mine_type VARCHAR(255), last_fetched TIMESTAMP);
