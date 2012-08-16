@@ -15,8 +15,9 @@ class Database:
 
     def __enter__(self):
         self.connect()
+        return self
 
-    def __exit__(self):
+    def __exit__(self, type, value, traceback):
         self.close()
 
     @property
@@ -53,9 +54,17 @@ class Database:
     #
 
     def has_url(self, url):
+        """Indicates if the url exists in document table."""
         curs = self.cursor
         curs.execute("SELECT * FROM document WHERE url=?", (url,))
         row = curs.fetchone()
+
+        return row != None
+
+    def fetched_url(self, url):
+        """Indicates if the url is already fetched."""
+        self.execute("SELECT * FROM document WHERE url=? AND last_fetched IS NOT NULL", (url,))
+        row = self.cursor.fetchone()
 
         return row != None
 
@@ -67,6 +76,9 @@ class Database:
                 # Simply ignore it if url already exists
                 pass
         self.commit()
+
+    def delete_url(self, url, commit=True):
+        self.execute("DELETE FROM document WHERE url=?", (url,), commit)
 
     def insert_document(self, document, commit=True):
         self.execute("INSERT INTO document VALUES (?, ?, ?, ?)",
@@ -81,7 +93,10 @@ class Database:
         curs.execute("SELECT * FROM document WHERE url=?", (url,))
 
         row = curs.fetchone()
-        return Document(row[0], row[1], row[2], row[3])
+        if row == None:
+            return None
+        else:
+            return Document(row[0], row[1], row[2], row[3])
 
     def export(self):
         """Export documents to files."""
@@ -124,8 +139,7 @@ class FetchTask:
             f.close()
             succeeded = True
             used_proxy = True
-
-        except Exception, e:
+        except Exception as e:
             raise e
         finally:
             end_time = time.time()
