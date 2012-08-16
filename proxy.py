@@ -31,4 +31,4 @@ class Proxy:
         #print time_elapsed
 
         if succeeded:
-            print 'Fetching via proxy was successful.'
+            print 'Fetching via %s was successful.' % self

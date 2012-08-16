@@ -68,17 +68,20 @@ class Database:
                 pass
         self.commit()
 
-    def insert_document(self, url, mimetype, timestamp, content, commit=True):
-        self.execute("INSERT INTO document VALUES (?, ?, ?, ?)", (url, mimetype, timestamp, content), commit)
+    def insert_document(self, document, commit=True):
+        self.execute("INSERT INTO document VALUES (?, ?, ?, ?)",
+            (document.url, document.mime_type, document.last_fetched, document.content), commit)
 
-    def update_document(self, url, mimetype, timestamp, content, commit=True):
-        self.execute("UPDATE document SET mime_type=?, last_fetched=?, content=? WHERE url=?", (mimetype, timestamp, content, url), commit)
+    def update_document(self, document, commit=True):
+        self.execute("UPDATE document SET mime_type=?, last_fetched=?, content=? WHERE url=?",
+            (document.mime_type, document.last_fetched, document.content, document.url), commit)
 
     def fetch_document(self, url):
         curs = self.cursor
         curs.execute("SELECT * FROM document WHERE url=?", (url,))
 
-        return curs.fetchone()
+        row = curs.fetchone()
+        return Document(row[0], row[1], row[2], row[3])
 
     def export(self):
         """Export documents to files."""
@@ -116,18 +119,11 @@ class FetchTask:
         used_proxy = False
 
         try:
-            if isinstance(db, Database):
-                if db.has_url(url):
-                    doc = db.fetch_document(url)
-                    content = doc[3]
-                    has_url = True
-
-            if content == None:
-                f = FetchTask.open_url(url, proxy)
-                content = f.read().decode('utf-8')
-                f.close()
-                succeeded = True
-                used_proxy = True
+            f = FetchTask.open_url(url, proxy)
+            content = f.read().decode('utf-8')
+            f.close()
+            succeeded = True
+            used_proxy = True
 
         except Exception, e:
             raise e
@@ -138,13 +134,7 @@ class FetchTask:
             if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
-            if isinstance(db, Database):
-                if has_url:
-                    db.update_document(url, '', datetime.datetime.now(), content)
-                else:
-                    db.insert_document(url, '', datetime.datetime.now(), content)
-
-        return content
+        return Document(url, None, datetime.datetime.now(), content)
 
 
 class TaskDispatcher:
@@ -161,8 +151,61 @@ class Document:
     # stick with this for now.
     url_pattern = r"https?:\/\/[\da-z\.-]+\.[a-z\.]{2,6}[\/\w \.\-\+]*\/?"
 
-    def __init__(self, raw_content):
-        self.raw_content = raw_content
+    def __init__(self, url, mime_type, last_fetched, content):
+        self.url = url
+        self.mime_type = mime_type
+        self.last_fetched = last_fetched
+        self.content = content
+
+    def __getstate__(self):
+        return self.__dict__.copy()
+
+    def __setstate__(self, dict):
+        self.__dict__.update(dict)
+
+    def url():
+        doc = "The url property."
+        def fget(self):
+            return self._url
+        def fset(self, value):
+            self._url = value
+        def fdel(self):
+            del self._url
+        return locals()
+    url = property(**url())
+
+    def mime_type():
+        doc = "The mime_type property."
+        def fget(self):
+            return self._mime_type
+        def fset(self, value):
+            self._mime_type = value
+        def fdel(self):
+            del self._mime_type
+        return locals()
+    mime_type = property(**mime_type())
+
+    def last_fetched():
+        doc = "The last_fetched property."
+        def fget(self):
+            return self._last_fetched
+        def fset(self, value):
+            self._last_fetched = value
+        def fdel(self):
+            del self._last_fetched
+        return locals()
+    last_fetched = property(**last_fetched())
+
+    def content():
+        doc = "The content property."
+        def fget(self):
+            return self._content
+        def fset(self, value):
+            self._content = value
+        def fdel(self):
+            del self._content
+        return locals()
+    content = property(**content())
 
     def extract_urls(self, url_pattern=None):
         """Returns a list of HTTP/S URLs in string format."""
@@ -170,7 +213,7 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        return re.findall(url_pattern, self.raw_content)
+        return re.findall(url_pattern, self.content)
 
 
 
