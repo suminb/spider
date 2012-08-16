@@ -1,6 +1,6 @@
 from spider import *
 from proxy import *
-from multiprocessing import Pool, Process, Lock, Semaphore, Array
+from multiprocessing import Pool, Process, Lock, Semaphore, Queue
 
 import random
 
@@ -67,19 +67,24 @@ def fetch_unfetched_urls(limit):
         
         return map(lambda u: u[0], curs.fetchall())
 
-def fetch_urls(urls, urls_count, thread_seq, lock):
+def fetch_urls(urls, urls_count, thread_seq, lock, queue):
     #for url in urls:
 
     print 'Th%d: %s' % (thread_seq, id(urls))
 
     while len(urls) > 0:
+    #while not queue.empty():
         # Python lists are thread-safe themselves
-        #lock.acquire()
-        url = urls.pop()
+        
+        lock.acquire()
+        url = urls.pop(thread_seq)
+        #url = queue.get()
         print 'Th%d: (%d/%d)' % (thread_seq, len(urls), urls_count)
-        #lock.release()
+    
 
         fetch_url(url, thread_seq)
+
+        lock.release()
 
 # This is about 2.5 times faster than the non-parallel method
 #pool = Pool(processes=4)
@@ -93,18 +98,22 @@ def fetch_urls(urls, urls_count, thread_seq, lock):
 def main():
 
     # number of processes
-    n = 8
+    n = 4
 
-    lock = Semaphore()
+    lock = Lock()
 
     urls = fetch_unfetched_urls(15*n)
+
+    queue = Queue()
+    for url in urls:
+        queue.put(url)
     
     p = [None,]*n
     for i in range(n):
         #p[i] = Process(target=fetch_urls, args=(urls[i*n:(i+1)*n], i))
 
         # http://docs.python.org/library/multiprocessing.html#sharing-state-between-processes
-        p[i] = Process(target=fetch_urls, args=(urls, len(urls), i, lock))
+        p[i] = Process(target=fetch_urls, args=(urls, len(urls), i, lock, queue))
         p[i].start()
     for i in range(n):
         p[i].join()
