@@ -20,7 +20,8 @@ proxy_list = (
     ('http', '180.183.184.222', 3128),
     ('http', '46.39.225.33', 3128),
     ('http', '110.171.33.200', 3128),
-
+    ('http', '171.98.152.110', 3128),
+    ('http', '117.211.123.62', 3128),
     #('https', '200.12.49.40', 8080),
 )
 
@@ -89,7 +90,7 @@ def main():
     n_proc = 8
 
     # number of urls per process
-    n_urls_pp = 100
+    n_urls_pp = 4
 
     urls = fetch_unfetched_urls(n_proc * n_urls_pp)
     
@@ -100,6 +101,15 @@ def main():
         p[i].start()
     for i in range(n_proc):
         p[i].join()
+
+    with Database(DB_URL) as db:
+        url_count = db.url_count
+        fetched_url_count = db.fetched_url_count
+
+        print "-[ Spider Report ]------------------------------------"
+        print "Total number of URLs: %d" % url_count
+        print "Number of fetched URLs: %d" % fetched_url_count
+        print "Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
 
 if __name__ == '__main__':
     main()

@@ -30,7 +30,7 @@ class Database:
     def close(self):
         self.conn.close()
 
-    def execute(self, query, params, commit=True):
+    def execute(self, query, params=(), commit=True):
         """
         query -- An SQL statement
         params -- List type instance
@@ -41,6 +41,18 @@ class Database:
         if commit:
             self.conn.commit()
 
+    def fetch_one(self, query, params=()):
+        curs = self.conn.cursor()
+        curs.execute(query, params)
+
+        return curs.fetchone()
+
+    def fetch_all(self, query, params=()):
+        curs = self.conn.cursor()
+        curs.execute(query, params)
+
+        return curs.fetchall()
+
     def commit(self):
         self.conn.commit()
 
@@ -48,18 +60,27 @@ class Database:
     # Spider specific functions
     #
 
+    @property
+    def url_count(self):
+        row = self.fetch_one("SELECT COUNT(url) FROM document")
+
+        return row[0] if row != None else 0
+
+    @property
+    def fetched_url_count(self):
+        row = self.fetch_one("SELECT COUNT(url) FROM document WHERE last_fetched IS NOT NULL")
+
+        return row[0] if row != None else 0
+
     def has_url(self, url):
         """Indicates if the url exists in document table."""
-        curs = self.cursor
-        curs.execute("SELECT * FROM document WHERE url=?", (url,))
-        row = curs.fetchone()
+        row = self.fetch_one("SELECT * FROM document WHERE url=?", (url,))
 
         return row != None
 
     def fetched_url(self, url):
         """Indicates if the url is already fetched."""
-        self.execute("SELECT * FROM document WHERE url=? AND last_fetched IS NOT NULL", (url,))
-        row = self.cursor.fetchone()
+        row = self.fetch_one("SELECT * FROM document WHERE url=? AND last_fetched IS NOT NULL", (url,))
 
         return row != None
 
@@ -85,10 +106,9 @@ class Database:
 
     def fetch_document(self, url):
         from spider import Document
-        curs = self.cursor
-        curs.execute("SELECT * FROM document WHERE url=?", (url,))
+        
+        row = self.fetch_one("SELECT * FROM document WHERE url=?", (url,))
 
-        row = curs.fetchone()
         if row == None:
             return None
         else:
