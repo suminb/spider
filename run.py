@@ -3,6 +3,7 @@ from database import Database
 from proxy import *
 from multiprocessing import Pool, Process, Lock, Semaphore, Queue, Manager
 
+import re
 import random
 
 DB_URL = 'spider.db'
@@ -10,28 +11,18 @@ URL_PATTERN = r"http://messages.finance.yahoo.com/Business_%26_Finance/Investmen
 
 #proxy = Proxy('http', '79.170.50.25', 80)
 
-proxy_list = (
-    ('http', '46.21.155.222', 3128),
-    ('http', '189.84.112.118', 3128),
-    ('http', '190.145.45.246', 3128),
-    ('http', '177.38.178.25', 3128),
-    ('http', '190.184.215.7', 8080),
-    ('http', '106.187.35.52', 8080),
-    ('http', '180.183.184.222', 3128),
-    ('http', '46.39.225.33', 3128),
-    ('http', '110.171.33.200', 3128),
-    ('http', '171.98.152.110', 3128),
-    ('http', '117.211.123.62', 3128),
-    #('https', '200.12.49.40', 8080),
-)
+proxy_list = None
 
-def hash_url(url):
-    return hashlib.sha1(url).hexdigest()
+def load_proxy_list(file_name):
+    with open(file_name) as f:
+        return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
 
 def fetch_url(url, thread_seq=0):
     with Database(DB_URL) as db:
         document = db.fetch_document(url)
         has_url = (document != None)
+
+        request_succeeded = 0
 
         pxy = random.choice(proxy_list)
         proxy = Proxy(pxy[0], pxy[1], pxy[2])
@@ -41,6 +32,7 @@ def fetch_url(url, thread_seq=0):
             task = FetchTask(url)
             try:
                 document = task.run(proxy, db)
+                request_succeeded = 1
 
                 if has_url:
                     db.update_document(document)
@@ -59,7 +51,7 @@ def fetch_url(url, thread_seq=0):
                 print 'HTTP error has occoured. Deleting url %s' % url
                 db.delete_url(url)
 
-        return document
+        return (request_succeeded, len(document.content))
 
 def fetch_unfetched_urls(limit):
     with Database(DB_URL) as db:
@@ -87,10 +79,10 @@ def fetch_urls(urls, urls_count, thread_seq):
 def main():
 
     # number of processes
-    n_proc = 8
+    n_proc = 32
 
     # number of urls per process
-    n_urls_pp = 4
+    n_urls_pp = 50
 
     urls = fetch_unfetched_urls(n_proc * n_urls_pp)
     
@@ -112,13 +104,7 @@ def main():
         print "Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
 
 if __name__ == '__main__':
+    proxy_list = load_proxy_list("proxy_list.txt")
     main()
     #url = "http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J/threadview?bn=10073&tid=443633&mid=443634"
     #document = fetch_url(url)
-
-    # if db.has_url(url):
-    #   db.update_document(document)
-    # else:
-    #   db.insert_document(document)
-
-#   urls = document.extract_urls(r"http://messages.finance.yahoo.com/[\/\w %=;&\.\-\+\?]*\/?")

@@ -11,7 +11,7 @@ class Proxy:
         """
         self.type = type_
         self.host = host
-        self.port = port
+        self.port = int(port)
 
     def __str__(self):
         return "%s://%s:%d" % (self.type, self.host, self.port)
