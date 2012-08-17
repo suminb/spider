@@ -7,7 +7,7 @@ import re
 import random
 
 DB_URL = 'spider.db'
-URL_PATTERN = r"http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J[\/\w %=;&\.\-\+\?]*\/?"
+URL_PATTERN = r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?"
 
 #proxy = Proxy('http', '79.170.50.25', 80)
 
@@ -57,7 +57,7 @@ def fetch_url(url, thread_seq=0):
                 print 'Unclassified exception has occured: %s' % e
 
         # number of bytes of the fetched document
-        fetched_size = len(document.content) if document.content != None else 0
+        fetched_size = len(document.content) if document != None and document.content != None else 0
 
         return {'succeeded':request_succeeded, 'new_urls_count':new_urls_count, 'fetched_size':fetched_size}
 
@@ -77,6 +77,7 @@ def fetch_urls(urls, urls_count, thread_seq):
 
 def reduce_report(row1, row2):
     return {'succeeded':row1['succeeded']+row2['succeeded'],
+            'new_urls_count':row1['new_urls_count']+row2['new_urls_count'],
             'fetched_size':row1['fetched_size']+row2['fetched_size']}
 
 def main():
@@ -85,7 +86,7 @@ def main():
     n_proc = 32
 
     # number of urls to fetch
-    n_urls = 100
+    n_urls = 1000
 
     urls = fetch_unfetched_urls(n_urls)
 
@@ -103,6 +104,7 @@ def main():
         print "  Number of successful fetches: %s" % report['succeeded']
         print "  Live proxy hit ratio: %.02f%%" % (100.0 * report['succeeded'] / len(urls))
         print "  Sum of size of fetched documents: %d" % report['fetched_size']
+        print "  Number of newly found URLs: %d" % report['new_urls_count']
         print
         print "-[ Spider Report: Overall summary ]------------------------------------"
         print "  Total number of URLs: %d" % url_count
@@ -113,4 +115,5 @@ if __name__ == '__main__':
     proxy_list = load_proxy_list("proxy_list.txt")
     main()
     #url = "http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J/threadview?bn=10073&tid=443633&mid=443634"
+    #url ="http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_A/threadview?m=tm&bn=1028&tid=1447176&mid=1447176&tof=35&rt=2&frt=2&off=1"
     #document = fetch_url(url)
