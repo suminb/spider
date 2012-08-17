@@ -23,6 +23,7 @@ def fetch_url(url, thread_seq=0):
         has_url = (document != None)
 
         request_succeeded = 0
+        new_urls_count = 0
 
         pxy = random.choice(proxy_list)
         proxy = Proxy(pxy[0], pxy[1], pxy[2])
@@ -40,7 +41,8 @@ def fetch_url(url, thread_seq=0):
                     db.insert_document(document)
 
                 urls = document.extract_urls(URL_PATTERN)
-                print "Th:%d: Found %d URLs in %s." % (thread_seq, len(urls), url)
+                new_urls_count = len(urls)
+                print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
                 db.insert_urls(urls)
 
             except urllib2.URLError as e:
@@ -51,7 +53,13 @@ def fetch_url(url, thread_seq=0):
                 print 'HTTP error has occoured. Deleting url %s' % url
                 db.delete_url(url)
 
-        return (request_succeeded, len(document.content))
+            except Exception as e:
+                print 'Unclassified exception has occured: %s' % e
+
+        # number of bytes of the fetched document
+        fetched_size = len(document.content) if document.content != None else 0
+
+        return {'succeeded':request_succeeded, 'new_urls_count':new_urls_count, 'fetched_size':fetched_size}
 
 def fetch_unfetched_urls(limit):
     with Database(DB_URL) as db:
@@ -67,41 +75,39 @@ def fetch_urls(urls, urls_count, thread_seq):
         fetch_url(url, thread_seq)
 
 
-# This is about 2.5 times faster than the non-parallel method
-#pool = Pool(processes=4)
-#print pool.map(f, urls)
-
-#print map(f, urls)
-
-#doc = Document(open('sample.html').read())
-#print doc.extract_urls()
+def reduce_report(row1, row2):
+    return {'succeeded':row1['succeeded']+row2['succeeded'],
+            'fetched_size':row1['fetched_size']+row2['fetched_size']}
 
 def main():
 
     # number of processes
     n_proc = 32
 
-    # number of urls per process
-    n_urls_pp = 50
+    # number of urls to fetch
+    n_urls = 100
 
-    urls = fetch_unfetched_urls(n_proc * n_urls_pp)
-    
-    p = [None,] * n_proc
-    for i in range(n_proc):
-        partial_urls = urls[i*n_urls_pp:(i+1)*n_urls_pp]
-        p[i] = Process(target=fetch_urls, args=(partial_urls, len(partial_urls), i))
-        p[i].start()
-    for i in range(n_proc):
-        p[i].join()
+    urls = fetch_unfetched_urls(n_urls)
+
+    pool = Pool(processes=n_proc)
+    result = pool.map(fetch_url, urls)
+    report = reduce(reduce_report, result)
 
     with Database(DB_URL) as db:
         url_count = db.url_count
         fetched_url_count = db.fetched_url_count
 
-        print "-[ Spider Report ]------------------------------------"
-        print "Total number of URLs: %d" % url_count
-        print "Number of fetched URLs: %d" % fetched_url_count
-        print "Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
+        print
+        print "-[ Spider Report: This session ]------------------------------------"
+        print "  Number of fetch requests sent out: %d" % (len(urls))
+        print "  Number of successful fetches: %s" % report['succeeded']
+        print "  Live proxy hit ratio: %.02f%%" % (100.0 * report['succeeded'] / len(urls))
+        print "  Sum of size of fetched documents: %d" % report['fetched_size']
+        print
+        print "-[ Spider Report: Overall summary ]------------------------------------"
+        print "  Total number of URLs: %d" % url_count
+        print "  Number of fetched URLs: %d" % fetched_url_count
+        print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
 
 if __name__ == '__main__':
     proxy_list = load_proxy_list("proxy_list.txt")
