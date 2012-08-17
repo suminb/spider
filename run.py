@@ -85,16 +85,19 @@ def fetch_urls(urls, urls_count, thread_seq):
 def main():
 
     # number of processes
-    n = 6
+    n_proc = 8
 
-    urls = fetch_unfetched_urls(100*n)
+    # number of urls per process
+    n_urls_pp = 100
+
+    urls = fetch_unfetched_urls(n_proc * n_urls_pp)
     
-    p = [None,]*n
-    for i in range(n):
-        partial_urls = urls[i*n:(i+1)*n]
+    p = [None,] * n_proc
+    for i in range(n_proc):
+        partial_urls = urls[i*n_urls_pp:(i+1)*n_urls_pp]
         p[i] = Process(target=fetch_urls, args=(partial_urls, len(partial_urls), i))
         p[i].start()
-    for i in range(n):
+    for i in range(n_proc):
         p[i].join()
 
 if __name__ == '__main__':
