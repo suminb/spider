@@ -7,7 +7,10 @@ import re
 import random
 
 DB_URL = 'spider.db'
-URL_PATTERN = r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?"
+URL_PATTERNS = (
+    r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?",
+    r"http://messages.finance.yahoo.com/search[\/\w %=;&\.\-\+\?]*\/?",
+)
 
 #proxy = Proxy('http', '79.170.50.25', 80)
 
@@ -40,10 +43,11 @@ def fetch_url(url, thread_seq=0):
                 else:
                     db.insert_document(document)
 
-                urls = document.extract_urls(URL_PATTERN)
-                new_urls_count = len(urls)
-                print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
-                db.insert_urls(urls)
+                for url_pattern in URL_PATTERNS:
+                    urls = document.extract_urls(url_pattern)
+                    new_urls_count += len(urls)
+                    print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
+                    db.insert_urls(urls)
 
             except urllib2.URLError as e:
                 print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
@@ -83,10 +87,10 @@ def reduce_report(row1, row2):
 def main():
 
     # number of processes
-    n_proc = 32
+    n_proc = 48
 
     # number of urls to fetch
-    n_urls = 1000
+    n_urls = 12000
 
     urls = fetch_unfetched_urls(n_urls)
 
