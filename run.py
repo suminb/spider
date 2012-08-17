@@ -1,4 +1,5 @@
 from spider import *
+from database import Database
 from proxy import *
 from multiprocessing import Pool, Process, Lock, Semaphore, Queue, Manager
 
