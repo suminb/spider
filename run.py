@@ -27,10 +27,10 @@ def fetch_unfetched_urls(limit):
 #
 
 # number of processes
-n_proc = 32
+n_proc = 64
 
 # number of urls to fetch
-n_urls = 100
+n_urls = 10000
 
 unfetched_urls = fetch_unfetched_urls(n_urls)
 
@@ -67,6 +67,7 @@ def fetch_url(url, thread_seq=0):
         thread_status[tid] = {
                 'url':None,
                 'proxy':None,
+                'message':None,
                 'succeeded':0,
                 'new_urls_count':0,
                 'fetched_size':0
@@ -75,6 +76,7 @@ def fetch_url(url, thread_seq=0):
     # URL currently being fetched
     thread_status[tid]['url'] = url
     thread_status[tid]['proxy'] = proxy
+    thread_status[tid]['message'] = None
     lock.release()
 
     with Database(DB_URL) as db:
@@ -103,15 +105,18 @@ def fetch_url(url, thread_seq=0):
                 #print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
 
             except urllib2.URLError as e:
-                print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
-                print e
+                #print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
+                #print e
+                thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
 
             except urllib2.HTTPError:
-                print 'HTTP error has occoured. Deleting url %s' % url
+                #print 'HTTP error has occoured. Deleting url %s' % url
+                thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
                 db.delete_url(url)
 
             except Exception as e:
-                print 'Unclassified exception has occured: %s' % e
+                #print 'Unclassified exception has occured: %s' % e
+                thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
 
         # number of bytes of the fetched document
         fetched_size = len(document.content) if document != None and document.content != None else 0
@@ -120,14 +125,17 @@ def fetch_url(url, thread_seq=0):
         status['processed_urls_count'] += 1
         thread_status[tid]['new_urls_count'] = new_urls_count
 
-        screen.clear()
+        screen.erase()
 
         # screen width and height
         height, width = screen.getmaxyx()
         
         for key in thread_status.keys()[:height-3]:
             screen.addstr("[%x] " % key)
-            screen.addstr("Fetching %s via %s\n" % (truncate_middle(thread_status[key]['url'], 50), thread_status[key]['proxy']))
+            if thread_status[key]['message'] == None:
+                screen.addstr("Fetching %s via %s\n" % (truncate_middle(thread_status[key]['url'], 50), thread_status[key]['proxy']))
+            else:
+                screen.addstr(thread_status[key]['message'] + "\n")
 
         if height - 3 < n_proc:
             screen.addstr("... and %d more threads are running ...\n" % (n_proc - (height - 3)))
