@@ -27,10 +27,10 @@ def fetch_unfetched_urls(limit):
 #
 
 # number of processes
-n_proc = 8
+n_proc = 32
 
 # number of urls to fetch
-n_urls = 20
+n_urls = 100
 
 unfetched_urls = fetch_unfetched_urls(n_urls)
 
@@ -46,6 +46,14 @@ def load_proxy_list(file_name):
     with open(file_name) as f:
         return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
 
+def truncate_middle(str, max_length):
+    str_len = len(str)
+    if str_len > max_length:
+        m = (max_length / 2) 
+        return "%s...%s" % (str[:m-2], str[str_len-m+1:])
+    else:
+        return str
+
 def fetch_url(url, thread_seq=0):
     # thread ID
     tid = thread.get_ident()
@@ -56,7 +64,13 @@ def fetch_url(url, thread_seq=0):
 
     lock.acquire()
     if not tid in thread_status:
-        thread_status[tid] = {'url':None, 'proxy':None, 'succeeded':0, 'new_urls_count':0, 'fetched_size':0}
+        thread_status[tid] = {
+                'url':None,
+                'proxy':None,
+                'succeeded':0,
+                'new_urls_count':0,
+                'fetched_size':0
+        }
 
     # URL currently being fetched
     thread_status[tid]['url'] = url
@@ -107,13 +121,18 @@ def fetch_url(url, thread_seq=0):
         thread_status[tid]['new_urls_count'] = new_urls_count
 
         screen.clear()
-        
-        for key in thread_status:
-            screen.addstr("[%s] " % key)
-            screen.addstr("Fetching %s via %s" % (thread_status[key]['url'][:40], thread_status[key]['proxy']))
-            screen.addstr("\n")
 
-        screen.addstr("(%d/%d)\n" % (status['processed_urls_count'], len(unfetched_urls)))
+        # screen width and height
+        height, width = screen.getmaxyx()
+        
+        for key in thread_status.keys()[:height-3]:
+            screen.addstr("[%x] " % key)
+            screen.addstr("Fetching %s via %s\n" % (truncate_middle(thread_status[key]['url'], 50), thread_status[key]['proxy']))
+
+        if height - 3 < n_proc:
+            screen.addstr("... and %d more threads are running ...\n" % (n_proc - (height - 3)))
+
+        screen.addstr("(%d/%d)" % (status['processed_urls_count'], len(unfetched_urls)))
 
         screen.refresh()
     
