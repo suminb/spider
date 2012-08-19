@@ -1,7 +1,7 @@
 from spider import *
 from database import Database
 from proxy import *
-from multiprocessing import Pool, Process, Lock, Semaphore, Queue, Manager
+from multiprocessing.pool import ThreadPool
 
 import re
 import random
@@ -94,7 +94,7 @@ def main():
 
     urls = fetch_unfetched_urls(n_urls)
 
-    pool = Pool(processes=n_proc)
+    pool = ThreadPool(n_proc)
     result = pool.map(fetch_url, urls)
     report = reduce(reduce_report, result)
 

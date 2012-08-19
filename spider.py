@@ -1,5 +1,7 @@
 from proxy import Proxy
 from database import Database
+from Queue import Queue
+from threading import Thread
 
 import urllib2
 import re
@@ -63,6 +65,38 @@ class TaskDispatcher:
         task -- an instance of FetchTask
         """
         raise Exception('Not implemented')
+
+
+class Task(Thread):
+    """Thread executing tasks from a given tasks queue.
+    http://code.activestate.com/recipes/577187-python-thread-pool/
+    """
+    def __init__(self, tasks):
+        Thread.__init__(self)
+        self.tasks = tasks
+        self.daemon = True
+        self.start()
+    
+    def run(self):
+        while True:
+            func, args, kargs = self.tasks.get()
+            try: func(*args, **kargs)
+            except Exception, e: print e
+            self.tasks.task_done()
+
+class ThreadPool2:
+    """Pool of threads consuming tasks from a queue"""
+    def __init__(self, num_threads):
+        self.tasks = Queue(num_threads)
+        for _ in range(num_threads): Worker(self.tasks)
+
+    def add_task(self, func, *args, **kargs):
+        """Add a task to the queue"""
+        self.tasks.put((func, args, kargs))
+
+    def wait(self):
+        """Wait for completion of all the tasks in the queue"""
+        self.tasks.join()
 
 
 class Document:
