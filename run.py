@@ -46,8 +46,8 @@ def fetch_url(url, thread_seq=0):
                 for url_pattern in URL_PATTERNS:
                     urls = document.extract_urls(url_pattern)
                     new_urls_count += len(urls)
-                    print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
                     db.insert_urls(urls)
+                print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
 
             except urllib2.URLError as e:
                 print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
@@ -90,7 +90,7 @@ def main():
     n_proc = 48
 
     # number of urls to fetch
-    n_urls = 12000
+    n_urls = 10000
 
     urls = fetch_unfetched_urls(n_urls)
 
@@ -120,4 +120,4 @@ if __name__ == '__main__':
     main()
     #url = "http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J/threadview?bn=10073&tid=443633&mid=443634"
     #url ="http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_A/threadview?m=tm&bn=1028&tid=1447176&mid=1447176&tof=35&rt=2&frt=2&off=1"
-    #document = fetch_url(url)
+    #fetch_url("http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_M/threadview?m=ts&bn=12004&tid=1800636&mid=1800636&tof=1&frt=2")

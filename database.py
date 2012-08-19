@@ -97,7 +97,7 @@ class Database:
         self.execute("DELETE FROM document WHERE url=?", (url,), commit)
 
     def insert_document(self, document, commit=True):
-        self.execute("INSERT INTO document VALUES (?, ?, ?, ?)",
+        self.execute("INSERT INTO document (url, mime_type, last_fetched, content) VALUES (?, ?, ?, ?)",
             (document.url, document.mime_type, document.last_fetched, document.content), commit)
 
     def update_document(self, document, commit=True):
