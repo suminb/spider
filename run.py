@@ -18,7 +18,7 @@ URL_PATTERNS = (
 )
 
 def fetch_unfetched_urls(limit):
-    with Database(DB_URL) as db:
+    with Database(opts["db_path"]) as db:
         curs = db.cursor
         curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (limit,))
         
@@ -28,17 +28,11 @@ def fetch_unfetched_urls(limit):
 # Shared resources
 #
 
-# number of processes
-n_proc = 96
-
-# number of urls to fetch
-n_urls = 100000
-
 # global runtime options
 opts = {}
 
-# single | normal
-opts["run_mode"] = "normal"
+# single | multithreading
+opts["run_mode"] = "multithreading"
 
 opts["generate_report"] = True
 
@@ -52,8 +46,7 @@ proxy_list = None
 status = {'processed_urls_count':0}
 thread_status = {}
 lock = threading.Lock()
-screen = None
-
+screen = curses.initscr()
 
 def load_proxy_list(file_name):
     with open(file_name) as f:
@@ -137,6 +130,9 @@ def fetch_url(url):
         lock.acquire()
         status['processed_urls_count'] += 1
         thread_status[tid]['new_urls_count'] = new_urls_count
+
+        if opts["run_mode"] == "multithreading":
+            refersh_screen()
     
         lock.release()
 
@@ -160,25 +156,27 @@ def refersh_screen():
         else:
             screen.addstr(thread_status[key]['message'] + "\n")
 
-    if height - 3 < n_proc:
-        screen.addstr("... and %d more threads are running ...\n" % (n_proc - (height - 3)))
+    if height - 3 < opts["n_proc"]:
+        screen.addstr("... and %d more threads are running ...\n" % (opts["n_proc"] - (height - 3)))
 
-    screen.addstr("(%d/%d)" % (status['processed_urls_count'], len(unfetched_urls)))
+    screen.addstr("(%d/%d)" % (status['processed_urls_count'], opts["n_urls"]))
 
     screen.refresh()
 
-def generate_report(report):
+def generate_report(report=None):
     with Database(opts["db_path"]) as db:
         url_count = db.url_count
         fetched_url_count = db.fetched_url_count
 
-        print
-        print "-[ Spider Report: This session ]------------------------------------"
-        print "  Number of fetch requests sent out: %d" % (opts["n_urls"])
-        print "  Number of successful fetches: %s" % report['succeeded']
-        print "  Live proxy hit ratio: %.02f%%" % (100.0 * report['succeeded'] / opts["n_urls"])
-        print "  Sum of size of fetched documents: %d" % report['fetched_size']
-        print "  Number of newly found URLs: %d" % report['new_urls_count']
+        if report != None:
+            print
+            print "-[ Spider Report: This session ]------------------------------------"
+            print "  Number of fetch requests sent out: %d" % (opts["n_urls"])
+            print "  Number of successful fetches: %s" % report['succeeded']
+            print "  Live proxy hit ratio: %.02f%%" % (100.0 * report['succeeded'] / opts["n_urls"])
+            print "  Sum of size of fetched documents: %d" % report['fetched_size']
+            print "  Number of newly found URLs: %d" % report['new_urls_count']
+
         print
         print "-[ Spider Report: Overall summary ]------------------------------------"
         print "  Total number of URLs: %d" % url_count
@@ -213,15 +211,14 @@ def usage():
 
 
 def main():
-    optlist, args = getopt.getopt(sys.argv[1:], "n:t:d:sr", ("create-db=", "single="))
+    optlist, args = getopt.getopt(sys.argv[1:], "n:t:d:sr", ("create-db=", "single=", "generate-report"))
 
     for o, a in optlist:
         if o == '-n':
             opts["n_urls"] = int(a)
-            unfetched_urls = fetch_unfetched_urls(opts["n_urls"])
 
         elif o == '-t':
-            n_proc = int(a)
+            opts["n_proc"] = int(a)
 
         elif o == '-d':
             opts["db_path"] = a
@@ -233,33 +230,47 @@ def main():
             opts["run_mode"] = "single"
             opts["url"] = a
 
+        elif o == "-r":
+            opts["generate_report"] = True
+
+        elif o == "--generate-report":
+            opts["run_mode"] = "generate_report"
+
 
     if opts["run_mode"] == "single":
         opts["n_urls"] = 1
         report = fetch_url(a)
 
-    if opts["generate_report"]:
-        generate_report(report)
+        cleanup_curses()
 
-    return None
+        if opts["generate_report"]:
+            generate_report(report)
 
-    pool = ThreadPool(n_proc)
-    result = pool.map(fetch_url, unfetched_urls)
-    report = reduce(reduce_report, result)
+    elif opts["run_mode"] == "multithreading":
+        prepare_curses()
+        unfetched_urls = fetch_unfetched_urls(opts["n_urls"])
+        pool = ThreadPool(opts["n_proc"])
+        result = pool.map(fetch_url, unfetched_urls)
+        report = reduce(reduce_report, result)
 
-    cleanup_curses()
+        cleanup_curses()
 
-    generate_report(report)
+        if opts["generate_report"]:
+            generate_report(report)
+
+    elif opts["run_mode"] == "create_db":
+        pass
+
+    elif opts["run_mode"] == "generate_report":
+        cleanup_curses()
+        generate_report()
+
 
 if __name__ == '__main__':
     proxy_list = load_proxy_list("proxy_list.txt")
     try:
         main()
     except:
-        #curses.endwin()
+        curses.endwin()
         import traceback
         traceback.print_exc()
-
-    #url = "http://messages.finance.yahoo.com/Business_%26_Finance/Investments/Stocks_%28A_to_Z%29/Stocks_J/threadview?bn=10073&tid=443633&mid=443634"
-    #url ="http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_A/threadview?m=tm&bn=1028&tid=1447176&mid=1447176&tof=35&rt=2&frt=2&off=1"
-    #fetch_url("http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_M/threadview?m=ts&bn=12004&tid=1800636&mid=1800636&tof=1&frt=2")
