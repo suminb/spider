@@ -1,5 +1,7 @@
 from proxy import Proxy
 from database import Database
+from Queue import Queue
+from threading import Thread
 
 import urllib2
 import re
@@ -57,14 +59,6 @@ class FetchTask:
         return Document(url, None, datetime.datetime.now(), content)
 
 
-class TaskDispatcher:
-    def dispatch(self, task):
-        """
-        task -- an instance of FetchTask
-        """
-        raise Exception('Not implemented')
-
-
 class Document:
 
     # FIXME: This does not cover all possible forms of URLs, but we'll
@@ -82,50 +76,6 @@ class Document:
 
     def __setstate__(self, dict):
         self.__dict__.update(dict)
-
-    def url():
-        doc = "The url property."
-        def fget(self):
-            return self._url
-        def fset(self, value):
-            self._url = value
-        def fdel(self):
-            del self._url
-        return locals()
-    url = property(**url())
-
-    def mime_type():
-        doc = "The mime_type property."
-        def fget(self):
-            return self._mime_type
-        def fset(self, value):
-            self._mime_type = value
-        def fdel(self):
-            del self._mime_type
-        return locals()
-    mime_type = property(**mime_type())
-
-    def last_fetched():
-        doc = "The last_fetched property."
-        def fget(self):
-            return self._last_fetched
-        def fset(self, value):
-            self._last_fetched = value
-        def fdel(self):
-            del self._last_fetched
-        return locals()
-    last_fetched = property(**last_fetched())
-
-    def content():
-        doc = "The content property."
-        def fget(self):
-            return self._content
-        def fset(self, value):
-            self._content = value
-        def fdel(self):
-            del self._content
-        return locals()
-    content = property(**content())
 
     def extract_urls(self, url_pattern=None):
         """Returns a list of HTTP/S URLs in string format."""

@@ -1,6 +1,6 @@
-#
-# Spider database scheme
-#
+--
+-- Spider database scheme
+--
 
 CREATE TABLE document (
 	url VARCHAR(255),
