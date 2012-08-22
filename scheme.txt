@@ -12,11 +12,21 @@ CREATE TABLE document (
 );
 
 CREATE TABLE proxy (
+	id INTEGER PRIMARY KEY,
 	protocol VARCHAR(16),
 	address VARCHAR(255),
 	port INTEGER,
 	last_used TIMESTAMP,
 	response_time INTEGER,
 	status INTEGER,
-	PRIMARY KEY (protocol, address, port)
+	UNIQUE (protocol, address, port)
+);
+
+CREATE TABLE proxy_log (
+	pid INTEGER,
+	`timestamp` TIMESTAMP,
+	response_time INTEGER,
+	status INTEGER,
+	details TEXT,
+	FOREIGN KEY (pid) REFERENCES proxy(id)
 );
