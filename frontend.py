@@ -13,6 +13,11 @@ def load_proxy_list(file_name):
     with open(file_name) as f:
         return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
 
+URL_PATTERNS = (
+    r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?",
+    r"http://messages.finance.yahoo.com/search[\/\w %=;&\.\-\+\?]*\/?",
+)
+
 proxy_list = load_proxy_list("proxy_list.txt")
 
 # FIXME: Temporary
@@ -59,7 +64,7 @@ def fetch_url(url, opts):
         new_urls_count = 0        
 
         if document == None or document.content == None:
-            #print "Th%d: Fetching %s via %s" % (thread_seq, url, proxy)
+            print "[%x] Fetching %s via %s" % (tid, url, proxy)
             task = FetchTask(url)
             try:
                 document = task.run(proxy, db)
@@ -74,21 +79,21 @@ def fetch_url(url, opts):
                     urls = document.extract_urls(url_pattern)
                     new_urls_count += len(urls)
                     db.insert_urls(urls)
-                #print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
+                print "[%x] Found %d URLs in %s." % (tid, new_urls_count, url)
 
             except urllib2.URLError as e:
-                #print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
-                #print e
-                thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
+                print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
+                print e
+                #thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
 
             except urllib2.HTTPError as e:
-                #print 'HTTP error has occoured. Deleting url %s' % url
-                thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
+                print 'HTTP error has occoured. Deleting url %s' % url
+                #thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
                 db.delete_url(url)
 
             except Exception as e:
-                #print 'Unclassified exception has occured: %s' % e
-                thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
+                print 'Unclassified exception has occured: %s' % e
+                #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
 
         # number of bytes of the fetched document
         fetched_size = len(document.content) if document != None and document.content != None else 0
@@ -226,10 +231,10 @@ def parse_args(args):
 
 def validate_runtime_options(opts):
     # Valid inputs
-    if ("run_mode" == "create_db") and ("db_path" in opts):
+    if (opts["run_mode"] == "create_db") and ("db_path" in opts):
         return (True, "")
 
-    elif ("run_mode" == "single") and ("db_path" in opts) and ("url" in opts):
+    elif (opts["run_mode"] == "single") and ("db_path" in opts) and ("url" in opts):
         return (True, "")
 
     # Everything else is invalid, but we're doing this to provide detailed error messages
