@@ -4,6 +4,7 @@ from spider import Document, FetchTask
 
 #import curses
 import threading
+import sys
 
 # FIXME: Temporary
 def load_proxy_list(file_name):
@@ -194,9 +195,7 @@ def parse_args(args):
     optlist, args = getopt.getopt(args, "u:n:t:d:smg", ("create-db", "single", "generate-report"))
     
     # default values
-    opts = {
-        "run_mode": "multithreading",
-    }
+    opts = {}
 
     for o, a in optlist:
         if o == '-n':
@@ -226,22 +225,43 @@ def parse_args(args):
 
     return opts
 
+def validate_runtime_options(opts):
+    # Valid inputs
+    if ("run_mode" == "create_db") and ("db_path" in opts):
+        return (True, "")
+
+    elif ("run_mode" == "single") and ("db_path" in opts) and ("url" in opts):
+        return (True, "")
+
+    # Everything else is invalid, but we're doing this to provide detailed error messages
+    if "run_mode" not in opts:
+        return (False, "Run mode is not specified")
+
+
+    return (False, "Unclassified error")
+
 def main():
     opts = parse_args(sys.argv[1:])
 
-    run_mode = opts["run_mode"]
+    valid, message = validate_runtime_options(opts)
 
-    if run_mode == "single":
-        fend = SingleMode(opts)
-        fend.run()
+    if valid:
+        run_mode = opts["run_mode"]
 
-    elif run_mode == "create_db":
-        fend = CreateDBMode(opts)
-        fend.run()
+        if run_mode == "single":
+            fend = SingleMode(opts)
+            fend.run()
 
-    elif run_mode == "generate_report":
-        fend = ReportMode(opts)
-        fend.run()
+        elif run_mode == "create_db":
+            fend = CreateDBMode(opts)
+            fend.run()
+
+        elif run_mode == "generate_report":
+            fend = ReportMode(opts)
+            fend.run()
+
+    else:
+        sys.stderr.write(message + "\n")
 
 if __name__ == "__main__":
     main()
