@@ -1,3 +1,4 @@
+from database import Database
 
 class Frontend:
     def __init__(self, opts):
@@ -39,7 +40,11 @@ class CreateDBMode(Frontend):
         super(Frontend, self).__init__(opts)
 
     def run(self):
-        create_sqlite3_db(self.opts["db_path"])
+        with Database(self.opts["db_path"]) as db:
+            with open("scheme.txt") as f:
+                # FIXME: This may break in some cases
+                for sql in f.read().split(";"):
+                    db.execute(sql)
 
 
 class ReportMode(Frontend):
@@ -81,7 +86,7 @@ import sys
 import getopt
 
 def parse_args(args):
-    optlist, args = getopt.getopt(args, "u:n:t:d:sg", ("create-db=", "single=", "generate-report"))
+    optlist, args = getopt.getopt(args, "u:n:t:d:sg", ("create-db", "single=", "generate-report"))
     
     # default values
     opts = {
@@ -122,6 +127,10 @@ def main():
 
     if run_mode == "single":
         pass
+
+    elif run_mode == "create_db":
+        fend = CreateDBMode(opts)
+        fend.run()
 
     elif run_mode == "generate_report":
         fend = ReportMode(opts)
