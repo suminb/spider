@@ -181,7 +181,8 @@ def generate_report(report=None):
         print "-[ Spider Report: Overall summary ]------------------------------------"
         print "  Total number of URLs: %d" % url_count
         print "  Number of fetched URLs: %d" % fetched_url_count
-        print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
+        if url_count > 0:
+            print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
 
 def prepare_curses():
     # initializes curses screen
