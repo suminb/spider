@@ -287,22 +287,15 @@ def main():
     if valid:
         run_mode = opts["run_mode"]
 
-        if run_mode == "create_db":
-            fend = CreateDBMode(opts)
-            fend.run()
-        
-        elif run_mode == "single":
-            fend = SingleMode(opts)
-            fend.run()
+        fc = {
+            "create_db": CreateDBMode,
+            "single": SingleMode,
+            "multithreading": MultiThreadingMode,
+            "generate_report": ReportMode,
+        }
 
-        elif run_mode == "multithreading":
-            fend = MultiThreadingMode(opts)
-            fend.run()
-        
-
-        elif run_mode == "generate_report":
-            fend = ReportMode(opts)
-            fend.run()
+        fend = fc[run_mode](opts)
+        fend.run()
 
     else:
         sys.stderr.write(message + "\n")
