@@ -27,7 +27,21 @@ lock = threading.Lock()
 status = {'processed_urls_count':0}
 thread_status = {}
 
-def fetch_url(url, opts):
+def fetch_unfetched_urls(limit, opts):
+    with Database(opts["db_path"]) as db:
+        curs = db.cursor
+        curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (limit,))
+        
+        return map(lambda u: u[0], curs.fetchall())
+
+def reduce_report(row1, row2):
+    return {'succeeded':row1['succeeded']+row2['succeeded'],
+            'new_urls_count':row1['new_urls_count']+row2['new_urls_count'],
+            'fetched_size':row1['fetched_size']+row2['fetched_size']}
+
+def fetch_url(args):
+    url, opts = args
+
     import urllib2
     import random
     import thread
@@ -102,8 +116,8 @@ def fetch_url(url, opts):
         status['processed_urls_count'] += 1
         thread_status[tid]['new_urls_count'] = new_urls_count
 
-        if opts["run_mode"] == "multithreading":
-            refersh_screen()
+        #if opts["run_mode"] == "multithreading":
+        #    refersh_screen()
     
         lock.release()
 
@@ -131,20 +145,28 @@ class SingleMode(Frontend):
         super(Frontend, self).__init__(opts)
 
     def run(self):
-        report = fetch_url(self.opts["url"], self.opts)
+        report = fetch_url((self.opts["url"], self.opts))
         ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
 class MultiThreadingMode(Frontend):
     def __int__(self, opts):
         super(Frontend, self).__init__(opts)
-        super(Frontend, self).prepare_curses()
+        #super(Frontend, self).prepare_curses()
 
     def __del__(self):
-        super(Frontend, self).cleanup_curses()
+        #super(Frontend, self).cleanup_curses()
+        pass
 
     def run(self):
-        pass
+        from multiprocessing.pool import ThreadPool
+
+        unfetched_urls = fetch_unfetched_urls(self.opts["n_urls"], self.opts)
+        pool = ThreadPool(self.opts["n_proc"])
+        result = pool.map(fetch_url, map(lambda u: (u, self.opts), unfetched_urls))
+        report = reduce(reduce_report, result)
+
+        ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
 class CreateDBMode(Frontend):
@@ -230,17 +252,30 @@ def parse_args(args):
     return opts
 
 def validate_runtime_options(opts):
-    # Valid inputs
-    if (opts["run_mode"] == "create_db") and ("db_path" in opts):
-        return (True, "")
+    if "run_mode" not in opts:
+        return (False, "Run mode is not specified")
+
+    elif (opts["run_mode"] == "create_db"):
+        if ("db_path" not in opts):
+            return (False, "SQLite3 database path must be supplied (-d)")
+        else:
+            return (True, "")
 
     elif (opts["run_mode"] == "single") and ("db_path" in opts) and ("url" in opts):
         return (True, "")
 
-    # Everything else is invalid, but we're doing this to provide detailed error messages
-    if "run_mode" not in opts:
-        return (False, "Run mode is not specified")
+    elif (opts["run_mode"] == "multithreading"):
+        if ("db_path" not in opts):
+            return (False, "SQLite3 database path must be supplied (-d)")
 
+        elif ("n_urls" not in opts):
+            return (False, "Specify the number of URLs to fetch (-n)")
+
+        elif ("n_proc" not in opts):
+            return (False, "Specify the number of threads (-t)")
+
+        else:
+            return (True, "")
 
     return (False, "Unclassified error")
 
@@ -252,13 +287,18 @@ def main():
     if valid:
         run_mode = opts["run_mode"]
 
-        if run_mode == "single":
+        if run_mode == "create_db":
+            fend = CreateDBMode(opts)
+            fend.run()
+        
+        elif run_mode == "single":
             fend = SingleMode(opts)
             fend.run()
 
-        elif run_mode == "create_db":
-            fend = CreateDBMode(opts)
+        elif run_mode == "multithreading":
+            fend = MultiThreadingMode(opts)
             fend.run()
+        
 
         elif run_mode == "generate_report":
             fend = ReportMode(opts)
