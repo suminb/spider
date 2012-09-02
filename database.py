@@ -113,7 +113,3 @@ class Database:
             return None
         else:
             return Document(row[0], row[1], row[2], row[3])
-
-    def export(self):
-        """Export documents to files."""
-        pass
