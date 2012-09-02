@@ -1,6 +1,7 @@
 from database import Database
 from proxy import Proxy
 from spider import Document, FetchTask
+from patterns import URL_PATTERNS
 
 #import curses
 import threading
@@ -12,11 +13,6 @@ def load_proxy_list(file_name):
     import re
     with open(file_name) as f:
         return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
-
-URL_PATTERNS = (
-    r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?",
-    r"http://messages.finance.yahoo.com/search[\/\w %=;&\.\-\+\?]*\/?",
-)
 
 proxy_list = load_proxy_list("proxy_list.txt")
 
