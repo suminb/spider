@@ -21,15 +21,20 @@ proxy_list = load_proxy_list("proxy_list.txt")
 lock = threading.Lock()
 
 # FIXME: Temporary
-status = {'processed_urls_count':0}
+status = {'processed_urls_count':0, "fetched_size":0}
+
+# FIXME: Temporary
+# Status infor per thread
 thread_status = {}
 
+# FIXME: Temporary
 def fetch_unfetched_urls(limit, opts):
     with Database(opts["db_path"]) as db:
         curs = db.cursor
         curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (limit,))
         
         return map(lambda u: u[0], curs.fetchall())
+
 
 def reduce_report(row1, row2):
     # Assuming row1 and row2 have share the same keys
@@ -40,12 +45,14 @@ def reduce_report(row1, row2):
 
     return r
 
+
 def fetch_url(args):
     url, opts = args
 
     import urllib2
     import random
     import thread
+    import contextlib
 
     # thread ID
     tid = thread.get_ident()
@@ -71,7 +78,7 @@ def fetch_url(args):
     thread_status[tid]['message'] = None
     lock.release()
 
-    with Database(opts["db_path"]) as db:
+    with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "aw")) as (db, log):
         document = db.fetch_document(url)
         has_url = (document != None)
 
@@ -79,7 +86,7 @@ def fetch_url(args):
         new_urls_count = 0        
 
         if document == None or document.content == None:
-            print "[%x] Fetching %s via %s" % (tid, url, proxy)
+            log.write("[%x] Fetching %s via %s\n" % (tid, url, proxy))
             task = FetchTask(url)
             try:
                 document = task.run(proxy, db)
@@ -94,31 +101,32 @@ def fetch_url(args):
                     urls = document.extract_urls(url_pattern)
                     new_urls_count += len(urls)
                     db.insert_urls(urls)
-                print "[%x] Found %d URLs in %s." % (tid, new_urls_count, url)
+                log.write("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
 
             except urllib2.URLError as e:
-                print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
-                print e
+                log.write("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
+                #print e
                 #thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
 
             except urllib2.HTTPError as e:
-                print 'HTTP error has occoured. Deleting url %s' % url
+                log.write("HTTP error has occoured. Deleting url %s\n" % url)
                 #thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
                 db.delete_url(url)
 
             except Exception as e:
-                print "Unclassified exception has occured: %s" % e
+                log.write("Unclassified exception has occured: %s\n" % e)
                 #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
 
         # number of bytes of the fetched document
         fetched_size = len(document.content) if document != None and document.content != None else 0
 
         lock.acquire()
-        status['processed_urls_count'] += 1
+        status["processed_urls_count"] += 1
+        status["fetched_size"] += fetched_size
         thread_status[tid]['new_urls_count'] = new_urls_count
 
-        #if opts["run_mode"] == "multithreading":
-        #    refersh_screen()
+        sys.stdout.write("\rFeteching %d of %d (%s)..." % (status["processed_urls_count"], opts["n_urls"], ReportMode.human_readable_size(status["fetched_size"])))
+        sys.stdout.flush()
     
         lock.release()
 
@@ -127,6 +135,7 @@ def fetch_url(args):
                 'new_urls_count': new_urls_count,
                 'fetched_size': fetched_size,
             }
+
 
 class Frontend:
     def __init__(self, opts):
@@ -172,6 +181,9 @@ class MultiThreadingMode(Frontend):
         pool = ThreadPool(self.opts["n_proc"])
         result = pool.map(fetch_url, map(lambda u: (u, self.opts), unfetched_urls))
         report = reduce(reduce_report, result)
+
+        # print an empty line after the execution
+        print
 
         end_time = time.time()
         report["time_elapsed"] = end_time - start_time # in seconds
@@ -247,7 +259,7 @@ def parse_args(args):
     optlist, args = getopt.getopt(args, "u:n:t:d:smg", ("create-db", "single", "generate-report"))
     
     # default values
-    opts = {}
+    opts = {"log_path":"spider.log"}
 
     for o, a in optlist:
         if o == '-n':
