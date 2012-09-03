@@ -7,7 +7,9 @@ URL_PATTERNS = (
 	r"http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_M/threadview\?[\/\w %=;&\.\-\+\?]*bn=12004[\/\w %=;&\.\-\+\?]*\/?",
 
 	# Microsoft (all messages)
-	r"http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_M/messagesview\?bn=12004[\/\w %=;&\.\-\+\?]*\/?",
+	r"http://messages.finance.yahoo.com/Stocks_%28A_to_Z%29/Stocks_M/messagesview\?bn=12004[\/\w %=;&\.\-\+]*\/?",
+
+	r"http://messages.finance.yahoo.com/[\/\w %=;&\.\-\+\?]*bn=26534[\/\w %=;&\.\-\+]*\/?",
 
     #r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?",
     r"http://messages.finance.yahoo.com/search[\/\w %=;&\.\-\+\?]*\/?",

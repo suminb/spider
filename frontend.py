@@ -125,7 +125,10 @@ def fetch_url(args):
         status["fetched_size"] += fetched_size
         thread_status[tid]['new_urls_count'] = new_urls_count
 
-        sys.stdout.write("\rFeteching %d of %d (%s)..." % (status["processed_urls_count"], opts["n_urls"], ReportMode.human_readable_size(status["fetched_size"])))
+        sys.stdout.write("\rFeteching %d of %d (%s)..." % (
+            status["processed_urls_count"],
+            opts["n_urls"],
+            ReportMode.human_readable_size(status["fetched_size"])))
         sys.stdout.flush()
     
         lock.release()
@@ -159,7 +162,16 @@ class SingleMode(Frontend):
         super(Frontend, self).__init__(opts)
 
     def run(self):
+        start_time = time.time()
+
         report = fetch_url((self.opts["url"], self.opts))
+
+        # print an empty line after the execution
+        print
+
+        end_time = time.time()
+        report["time_elapsed"] = end_time - start_time # in seconds
+
         ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
