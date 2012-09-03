@@ -7,6 +7,7 @@ from patterns import URL_PATTERNS
 import threading
 import getopt
 import sys
+import time
 
 # FIXME: Temporary
 def load_proxy_list(file_name):
@@ -31,9 +32,13 @@ def fetch_unfetched_urls(limit, opts):
         return map(lambda u: u[0], curs.fetchall())
 
 def reduce_report(row1, row2):
-    return {'succeeded':row1['succeeded']+row2['succeeded'],
-            'new_urls_count':row1['new_urls_count']+row2['new_urls_count'],
-            'fetched_size':row1['fetched_size']+row2['fetched_size']}
+    # Assuming row1 and row2 have share the same keys
+
+    r = {}
+    for key in row1:
+        r[key] = row1[key] + row2[key]
+
+    return r
 
 def fetch_url(args):
     url, opts = args
@@ -102,7 +107,7 @@ def fetch_url(args):
                 db.delete_url(url)
 
             except Exception as e:
-                print 'Unclassified exception has occured: %s' % e
+                print "Unclassified exception has occured: %s" % e
                 #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
 
         # number of bytes of the fetched document
@@ -117,7 +122,11 @@ def fetch_url(args):
     
         lock.release()
 
-        return {'succeeded':request_succeeded, 'new_urls_count':new_urls_count, 'fetched_size':fetched_size}
+        return {"count": 1,
+                "succeeded": request_succeeded,
+                'new_urls_count': new_urls_count,
+                'fetched_size': fetched_size,
+            }
 
 class Frontend:
     def __init__(self, opts):
@@ -157,10 +166,15 @@ class MultiThreadingMode(Frontend):
     def run(self):
         from multiprocessing.pool import ThreadPool
 
+        start_time = time.time()
+
         unfetched_urls = fetch_unfetched_urls(self.opts["n_urls"], self.opts)
         pool = ThreadPool(self.opts["n_proc"])
         result = pool.map(fetch_url, map(lambda u: (u, self.opts), unfetched_urls))
         report = reduce(reduce_report, result)
+
+        end_time = time.time()
+        report["time_elapsed"] = end_time - start_time # in seconds
 
         ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
@@ -188,6 +202,20 @@ class ReportMode(Frontend):
             ReportMode.generate_report(self.opts["db_path"])
 
     @staticmethod
+    def human_readable_size(size):
+        if size < 1024:
+            return "%d bytes" % size
+        
+        elif size < 1024**2:
+            return "%.02f KB" % (float(size) / 1024)
+
+        elif size < 1024**3:
+            return "%.02f MB" % (float(size) / 1024**2)
+
+        else:
+            return "%.02f GB" % (float(size) / 1024**3)
+
+    @staticmethod
     def generate_report(db_path, session_report=None, opts=None):
         """Prints out a status report to standard output. This function may be called from outside this class."""
         
@@ -199,10 +227,12 @@ class ReportMode(Frontend):
 
             if session_report != None:
                 print "-[ Spider Report: This session ]------------------------------------"
-                print "  Number of fetch requests sent out: %d" % (opts["n_urls"])
-                print "  Number of successful fetches: %s" % session_report['succeeded']
-                print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report['succeeded'] / opts["n_urls"])
-                print "  Sum of size of fetched documents: %d" % session_report['fetched_size']
+                print "  Number of fetch requests sent out: %d" % session_report["count"]
+                print "  Number of successful fetches: %s" % session_report["succeeded"]
+                print "  Time elapsed: %.03f sec" % session_report["time_elapsed"]
+                print "  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"])
+                print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report["succeeded"] / session_report["count"])
+                print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
                 print "  Number of newly found URLs: %d" % session_report['new_urls_count']
                 print
 
