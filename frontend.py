@@ -191,6 +191,15 @@ class MultiThreadingMode(Frontend):
         ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
+class AutomaticMode(Frontend):
+    def run(self):
+        # If there is nothing to fetch, exit
+        # Figure out # of URLs to fetch
+        # Figure out optimal # of threads
+        # Continuously run multithreading mode
+        pass
+
+
 class CreateDBMode(Frontend):
     def __int__(self, opts):
         super(Frontend, self).__init__(opts)
