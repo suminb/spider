@@ -7,6 +7,7 @@ from patterns import URL_PATTERNS
 import threading
 import getopt
 import sys
+import os
 import time
 
 # FIXME: Temporary
@@ -274,6 +275,7 @@ class ReportMode(Frontend):
             print "  Number of fetched URLs: %d" % fetched_url_count
             if url_count > 0:
                 print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
+                print "  Database file size: %s" % ReportMode.human_readable_size(os.path.getsize(db_path))
 
 
 def parse_args(args):
