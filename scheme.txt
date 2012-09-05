@@ -10,6 +10,7 @@ CREATE TABLE document (
 	content TEXT,
 	PRIMARY KEY (url)
 );
+CREATE INDEX last_fetched ON document (last_fetched);
 
 CREATE TABLE proxy (
 	id INTEGER PRIMARY KEY,
