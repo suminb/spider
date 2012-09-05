@@ -2,6 +2,8 @@ from proxy import Proxy
 from database import Database
 from Queue import Queue
 from threading import Thread
+from bs4 import BeautifulSoup
+from utils import make_absolute_url
 
 import urllib2
 import re
@@ -83,10 +85,24 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        return re.findall(url_pattern, self.content)
+        soup = BeautifulSoup(self.content)
+
+        # Find all anchor tags
+        urls = soup.find_all("a")
+
+        # Filter out anchor tags without "href" attribute
+        urls = filter(lambda a: a.get("href") != None, urls)
+
+        # Make the all absolute URLs
+        urls = map(lambda a: make_absolute_url(self.url, a.get("href")), urls)
+
+        # Filter URLs that match url_pattern
+        urls = filter(lambda u: re.match(url_pattern, u) != None, urls)
+
+        return urls
 
 
+if __name__ == "__main__":
+    doc = Document("http://localhost/sample.html", "text/html", None, open("sample3.html").read())
+    print doc.extract_urls(r"http://localhost.*")
 
-# TODO: Implement URL extractor
-# TODO: Implement URL filter
-# TODO: Implement Write class that abstracts the process of storing fetched pages
