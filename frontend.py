@@ -79,7 +79,7 @@ def fetch_url(args):
     thread_status[tid]['message'] = None
     lock.release()
 
-    with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "aw")) as (db, log):
+    with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
         document = db.fetch_document(url)
         has_url = (document != None)
 
