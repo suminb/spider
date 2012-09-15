@@ -1,5 +1,5 @@
 URL_PATTERNS = (
 
-	r"https?://finance.yahoo.com/[\/\w %=;&\.\-\+\?]*bn=30ec85b4-d1ce-32fe-a71c-f56c94fe758b[\/\w %=;&\.\-\+]*\/?",
+	r"https?://finance.yahoo.com/[\/\w %=;&_\.\-\+\?]*bn=944626ad-f9e3-376a-b919-b50dc0b080a4[\/\w %=;&_\.\-\+]*\/?",
 
 )

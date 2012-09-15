@@ -13,7 +13,7 @@ import time
 
 class FetchTask:
     
-    USER_AGENT = 'Spider v0.1'
+    USER_AGENT = 'Spider v0.2'
     REQUEST_TIMEOUT = 15
 
     def __init__(self, url):

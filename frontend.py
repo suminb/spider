@@ -210,7 +210,8 @@ class AutomaticMode(Frontend):
         # Figure out # of URLs to fetch
         # Figure out optimal # of threads
         # Continuously run multithreading mode
-        pass
+        
+        profile = __import__(opts["profile"])
 
 
 class CreateDBMode(Frontend):
@@ -279,7 +280,7 @@ class ReportMode(Frontend):
 
 
 def parse_args(args):
-    optlist, args = getopt.getopt(args, "u:n:t:d:smg", ("create-db", "single", "generate-report"))
+    optlist, args = getopt.getopt(args, "u:n:t:d:f:smag", ("create-db", "single", "generate-report", "auto"))
     
     # default values
     opts = {"log_path":"spider.log"}
@@ -297,6 +298,9 @@ def parse_args(args):
         elif o in ("-u", "--url"):
             opts["url"] = a
 
+        elif o == "-f":
+            opts["profile"] = a
+
         elif o == "--create-db":
             opts["run_mode"] = "create_db"
 
@@ -306,6 +310,9 @@ def parse_args(args):
 
         elif o in ("-m", "--multithreading"):
             opts["run_mode"] = "multithreading"
+
+        elif o in ("-a", "--auto"):
+            opts["run_mode"] = "auto"
 
         elif o in ("-g", "--generate-report"):
             opts["run_mode"] = "generate_report"
@@ -338,6 +345,12 @@ def validate_runtime_options(opts):
         else:
             return (True, "")
 
+    elif (opts["run_mode"] == "auto"):
+        if ("profile" not in opts):
+            return (False, "")
+        else:
+            return (True, "")
+
     return (False, "Unclassified error")
 
 def main():
@@ -352,6 +365,7 @@ def main():
             "create_db": CreateDBMode,
             "single": SingleMode,
             "multithreading": MultiThreadingMode,
+            "auto": AutomaticMode,
             "generate_report": ReportMode,
         }
 
