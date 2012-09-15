@@ -85,7 +85,7 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        soup = BeautifulSoup(self.content)
+        soup = BeautifulSoup(self.content, parseOnlyThese=SoupStrainer("a"))
 
         # Find all anchor tags
         urls = soup.find_all("a")
