@@ -43,7 +43,7 @@ class FetchTask:
 
         try:
             f = FetchTask.open_url(url, proxy)
-            content = unicode(f.read().decode("utf-8", "ignore"))
+            content = f.read().decode("utf-8") # content is unicode type at this point
             f.close()
             succeeded = True
             used_proxy = True
@@ -58,7 +58,7 @@ class FetchTask:
             if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
-        return Document(url, None, datetime.datetime.now(), content)
+        return Document(url, None, datetime.datetime.now(), content[:50000])
 
 
 class Document:
@@ -73,8 +73,8 @@ class Document:
         self.last_fetched = last_fetched
         self.content = content
 
-        if content != None:
-            open('debug.txt', 'w').write(content)
+        #if content != None:
+        #    open('debug.txt', 'w').write(content)
 
     def __getstate__(self):
         return self.__dict__.copy()
@@ -88,7 +88,7 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        soup = BeautifulSoup(self.content, parseOnlyThese=SoupStrainer("a"))
+        soup = BeautifulSoup(self.content, parse_only=SoupStrainer("a"))
 
         # Find all anchor tags
         urls = soup.find_all("a")
@@ -106,7 +106,7 @@ class Document:
 
 
 if __name__ == "__main__":
-    doc = Document("http://finance.yahoo.com/sample.html", "text/html", None, open("debug.html").read())
+    doc = Document("http://finance.yahoo.com/sample.html", "text/html", None, unicode(open("debug.html").read().decode("utf-8")))
     from patterns import URL_PATTERNS
     print doc.extract_urls(URL_PATTERNS[0])
 

@@ -205,13 +205,23 @@ class MultiThreadingMode(Frontend):
 
 
 class AutomaticMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
+
     def run(self):
         # If there is nothing to fetch, exit
         # Figure out # of URLs to fetch
         # Figure out optimal # of threads
         # Continuously run multithreading mode
         
-        profile = __import__(opts["profile"])
+        profile = __import__(self.opts["profile"])
+
+        self.opts["n_urls"] = profile.URLS
+        self.opts["n_proc"] = profile.THREADS
+        self.opts["db_path"] = profile.DB_URI
+
+        multimode = MultiThreadingMode(self.opts)
+        multimode.run()
 
 
 class CreateDBMode(Frontend):
@@ -347,7 +357,7 @@ def validate_runtime_options(opts):
 
     elif (opts["run_mode"] == "auto"):
         if ("profile" not in opts):
-            return (False, "")
+            return (False, "Specify a profile to run (-f)")
         else:
             return (True, "")
 
