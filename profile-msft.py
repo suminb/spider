@@ -1,6 +1,6 @@
 
 # Specify the number of URLs to fetch (int or "Auto")
-URLS = "Auto"
+URLS = 10
 
 # Specify the number of threads (int or "Auto")
 THREADS = 96
@@ -17,6 +17,7 @@ PROXY_LIST_URI = "proxy_list.txt"
 ENTRY_POINTS = (
 	"http://finance.yahoo.com/mb/forumview/?&bn=30ec85b4-d1ce-32fe-a71c-f56c94fe758b",
 	"http://finance.yahoo.com/mbview/threadview/?&bn=30ec85b4-d1ce-32fe-a71c-f56c94fe758b&tid=1343911836000-0fbebf76-5ff6-3a80-a415-26faca45238a&stb=n&lv=e&la=ml",
+	"http://finance.yahoo.com/mbview/threadview/;_ylt=AmO6eh7W6ekV.PHcLzPLWJDeAohG;_ylu=X3oDMTFqbjEwZHUzBG1pdANNZXNzYWdlIEJvYXJkcyB3aWRnZXQEcG9zAzM2BHNlYwNNZWRpYU1zZ0JvYXJkcw--;_ylg=X3oDMTFlamZvM2ZlBGludGwDdXMEbGFuZwNlbi11cwRwc3RhaWQDBHBzdGNhdAMEcHQDc2VjdGlvbnM-;_ylv=3?&bn=30ec85b4-d1ce-32fe-a71c-f56c94fe758b&tid=1350621518116-1416bbe7-30c8-4745-bcd7-e510f4164223&tls=la%2Cd%2C215",
 )
 
 # URLs that match there patterns will be fetched

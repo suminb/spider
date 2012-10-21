@@ -28,7 +28,7 @@ class FetchTask:
             opener = urllib2.build_opener(proxy.proxy_handler)
         else:
             opener = urllib2.build_opener()
-        opener.addheaders = [('User-agent', FetchTask.USER_AGENT)]
+        opener.addheaders = [("User-agent", FetchTask.USER_AGENT)]
 
         return opener.open(url, timeout=FetchTask.REQUEST_TIMEOUT)
 
