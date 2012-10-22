@@ -44,6 +44,9 @@ class FetchTask:
         try:
             f = FetchTask.open_url(url, proxy)
             content = f.read().decode("utf-8") # content is unicode type at this point
+
+            # TODO: Parse content to produce a JSON string using a function from profile-msft.py
+
             f.close()
             succeeded = True
             used_proxy = True
