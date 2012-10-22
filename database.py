@@ -112,7 +112,8 @@ class Database:
         if row == None:
             return None
         else:
-            return Document(row[0], row[1], row[2], row[3])
+            # TODO: Should I return a None object, an empty string, or row[3] for 'content' field?
+            return Document(row[0], row[1], row[2], row[3], None)
 
     def export(self):
         """Export documents to files."""

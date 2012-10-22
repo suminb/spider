@@ -89,7 +89,7 @@ def fetch_url(args):
             log.write("[%x] Fetching %s via %s\n" % (tid, url, proxy))
             task = FetchTask(url)
             try:
-                document = task.run(proxy, db)
+                document = task.run(proxy, db, opts)
                 request_succeeded = 1
 
                 if has_url:
@@ -115,6 +115,7 @@ def fetch_url(args):
 
             except Exception as e:
                 log.write("Unclassified exception has occured: %s\n" % e)
+                print e
                 #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
 
         # number of bytes of the fetched document
@@ -215,10 +216,12 @@ class AutomaticMode(Frontend):
         
         profile = __import__(self.opts["profile"])
 
+        # TODO: Any better way to handle this?
         self.opts["n_urls"] = profile.URLS
         self.opts["n_proc"] = profile.THREADS
         self.opts["db_path"] = profile.DB_URI
         self.opts["url_patterns"] = profile.URL_PATTERNS
+        self.opts["process_content"] = profile.process_content
 
         with Database(self.opts["db_path"]) as db:
             db.insert_urls(profile.ENTRY_POINTS)

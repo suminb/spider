@@ -19,8 +19,8 @@ class FetchTask:
     def __init__(self, url):
         self.url = url
 
-    def run(self, proxy=None, db=None):
-        return FetchTask.fetch_url(self.url, proxy, db)
+    def run(self, proxy=None, db=None, opts=None):
+        return FetchTask.fetch_url(self.url, proxy, db, opts)
 
     @staticmethod
     def open_url(url, proxy=None):
@@ -33,7 +33,7 @@ class FetchTask:
         return opener.open(url, timeout=FetchTask.REQUEST_TIMEOUT)
 
     @staticmethod
-    def fetch_url(url, proxy=None, db=None):
+    def fetch_url(url, proxy=None, db=None, opts=None):
 
         start_time = time.time()
         content = None
@@ -43,9 +43,11 @@ class FetchTask:
 
         try:
             f = FetchTask.open_url(url, proxy)
-            content = f.read().decode("utf-8") # content is unicode type at this point
+            raw_content = f.read().decode("utf-8") # content is unicode type at this point
 
-            # TODO: Parse content to produce a JSON string using a function from profile-msft.py
+            content = raw_content
+            if (opts != None) and ("process_content" in opts):
+                content = opts["process_content"](content)
 
             f.close()
             succeeded = True
@@ -61,7 +63,7 @@ class FetchTask:
             if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
-        return Document(url, None, datetime.datetime.now(), content[:50000])
+        return Document(url, None, datetime.datetime.now(), raw_content, content)
 
 
 class Document:
@@ -70,10 +72,11 @@ class Document:
     # stick with this for now.
     url_pattern = r"https?:\/\/[\da-z\.-]+\.[a-z\.]{2,6}[\/\w \.\-\+]*\/?"
 
-    def __init__(self, url, mime_type, last_fetched, content):
+    def __init__(self, url, mime_type, last_fetched, raw_content, content):
         self.url = url
         self.mime_type = mime_type
         self.last_fetched = last_fetched
+        self.raw_content = raw_content
         self.content = content
 
         #if content != None:
@@ -91,7 +94,7 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        soup = BeautifulSoup(self.content, parse_only=SoupStrainer("a"))
+        soup = BeautifulSoup(self.raw_content, parse_only=SoupStrainer("a"))
 
         # Find all anchor tags
         urls = soup.find_all("a")
