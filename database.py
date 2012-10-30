@@ -97,12 +97,12 @@ class Database:
         self.execute("DELETE FROM document WHERE url=?", (url,), commit)
 
     def insert_document(self, document, commit=True):
-        self.execute("INSERT INTO document (url, mime_type, last_fetched, content) VALUES (?, ?, ?, ?)",
-            (document.url, document.mime_type, document.last_fetched, document.content), commit)
+        self.execute("INSERT INTO document (url, mime_type, last_fetched) VALUES (?, ?, ?)",
+            (document.url, document.mime_type, document.last_fetched), commit)
 
     def update_document(self, document, commit=True):
-        self.execute("UPDATE document SET mime_type=?, last_fetched=?, content=? WHERE url=?",
-            (document.mime_type, document.last_fetched, document.content, document.url), commit)
+        self.execute("UPDATE document SET mime_type=?, last_fetched=? WHERE url=?",
+            (document.mime_type, document.last_fetched, document.url), commit)
 
     def fetch_document(self, url):
         from spider import Document
@@ -112,8 +112,7 @@ class Database:
         if row == None:
             return None
         else:
-            # TODO: Should I return a None object, an empty string, or row[3] for 'content' field?
-            return Document(row[0], row[1], row[2], row[3], None)
+            return Document(row[0], row[1], row[2], row[3])
 
     def export(self):
         """Export documents to files."""

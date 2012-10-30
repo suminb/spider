@@ -45,10 +45,6 @@ class FetchTask:
             f = FetchTask.open_url(url, proxy)
             raw_content = f.read().decode("utf-8") # content is unicode type at this point
 
-            content = raw_content
-            if (opts != None) and ("process_content" in opts):
-                content = opts["process_content"](content)
-
             f.close()
             succeeded = True
             used_proxy = True
@@ -63,7 +59,13 @@ class FetchTask:
             if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
-        return Document(url, None, datetime.datetime.now(), raw_content, content)
+        return Document(url, None, datetime.datetime.now(), raw_content)
+
+
+class URL:
+    def __init__(self, key, url, last_fetched, fetched_size):
+        self.url = url
+
 
 
 class Document:
@@ -72,11 +74,10 @@ class Document:
     # stick with this for now.
     url_pattern = r"https?:\/\/[\da-z\.-]+\.[a-z\.]{2,6}[\/\w \.\-\+]*\/?"
 
-    def __init__(self, url, mime_type, last_fetched, raw_content, content):
+    def __init__(self, url, mime_type, last_fetched, content):
         self.url = url
         self.mime_type = mime_type
         self.last_fetched = last_fetched
-        self.raw_content = raw_content
         self.content = content
 
         #if content != None:
@@ -94,7 +95,7 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        soup = BeautifulSoup(self.raw_content, parse_only=SoupStrainer("a"))
+        soup = BeautifulSoup(self.content, parse_only=SoupStrainer("a"))
 
         # Find all anchor tags
         urls = soup.find_all("a")
