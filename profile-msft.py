@@ -32,7 +32,16 @@ def generate_key(url):
 
 def process_content(url_entry):
 
-	print url_entry.content
+	from urlparse import urlparse, parse_qs
+
+	# parse URL
+	url = urlparse(url_entry.url)
+
+	# parse query string
+	qs = parse_qs(url.query)
+
+	
+
 	"""
 	import json
 
