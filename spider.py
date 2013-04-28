@@ -2,7 +2,7 @@ from proxy import Proxy
 from database import Database
 from Queue import Queue
 from threading import Thread
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 from utils import make_absolute_url
 
 import urllib2
@@ -13,8 +13,8 @@ import time
 
 class FetchTask:
     
-    USER_AGENT = 'Spider v0.1'
-    REQUEST_TIMEOUT = 15
+    USER_AGENT = 'Spider v0.2'
+    REQUEST_TIMEOUT = 10
 
     def __init__(self, url):
         self.url = url
@@ -28,7 +28,7 @@ class FetchTask:
             opener = urllib2.build_opener(proxy.proxy_handler)
         else:
             opener = urllib2.build_opener()
-        opener.addheaders = [('User-agent', FetchTask.USER_AGENT)]
+        opener.addheaders = [("User-agent", FetchTask.USER_AGENT)]
 
         return opener.open(url, timeout=FetchTask.REQUEST_TIMEOUT)
 
@@ -43,7 +43,10 @@ class FetchTask:
 
         try:
             f = FetchTask.open_url(url, proxy)
-            content = f.read().decode('utf-8')
+            content = f.read().decode("utf-8") # content is unicode type at this point
+
+            # TODO: Parse content to produce a JSON string using a function from profile-msft.py
+
             f.close()
             succeeded = True
             used_proxy = True
@@ -58,7 +61,7 @@ class FetchTask:
             if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
-        return Document(url, None, datetime.datetime.now(), content)
+        return Document(url, None, datetime.datetime.now(), content[:50000])
 
 
 class Document:
@@ -73,6 +76,9 @@ class Document:
         self.last_fetched = last_fetched
         self.content = content
 
+        #if content != None:
+        #    open('debug.txt', 'w').write(content)
+
     def __getstate__(self):
         return self.__dict__.copy()
 
@@ -85,7 +91,7 @@ class Document:
         if url_pattern == None:
             url_pattern = self.url_pattern
 
-        soup = BeautifulSoup(self.content, parseOnlyThese=SoupStrainer("a"))
+        soup = BeautifulSoup(self.content, parse_only=SoupStrainer("a"))
 
         # Find all anchor tags
         urls = soup.find_all("a")
@@ -103,6 +109,7 @@ class Document:
 
 
 if __name__ == "__main__":
-    doc = Document("http://localhost/sample.html", "text/html", None, open("sample3.html").read())
-    print doc.extract_urls(r"http://localhost.*")
+    doc = Document("http://finance.yahoo.com/sample.html", "text/html", None, unicode(open("debug.html").read().decode("utf-8")))
+    from patterns import URL_PATTERNS
+    print doc.extract_urls(URL_PATTERNS[0])
 

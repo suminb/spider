@@ -1,7 +1,6 @@
 from database import Database
 from proxy import Proxy
 from spider import Document, FetchTask
-from patterns import URL_PATTERNS
 
 #import curses
 import threading
@@ -32,7 +31,7 @@ thread_status = {}
 def fetch_unfetched_urls(limit, opts):
     with Database(opts["db_path"]) as db:
         curs = db.cursor
-        curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (limit,))
+        curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (int(limit),))
         
         return map(lambda u: u[0], curs.fetchall())
 
@@ -65,18 +64,18 @@ def fetch_url(args):
     lock.acquire()
     if not tid in thread_status:
         thread_status[tid] = {
-                'url':None,
-                'proxy':None,
-                'message':None,
-                'succeeded':0,
-                'new_urls_count':0,
-                'fetched_size':0
+                "url":None,
+                "proxy":None,
+                "message":None,
+                "succeeded":0,
+                "new_urls_count":0,
+                "fetched_size":0
         }
 
     # URL currently being fetched
-    thread_status[tid]['url'] = url
-    thread_status[tid]['proxy'] = proxy
-    thread_status[tid]['message'] = None
+    thread_status[tid]["url"] = url
+    thread_status[tid]["proxy"] = proxy
+    thread_status[tid]["message"] = None
     lock.release()
 
     with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
@@ -98,7 +97,7 @@ def fetch_url(args):
                 else:
                     db.insert_document(document)
 
-                for url_pattern in URL_PATTERNS:
+                for url_pattern in opts["url_patterns"]:
                     urls = document.extract_urls(url_pattern)
                     new_urls_count += len(urls)
                     db.insert_urls(urls)
@@ -193,10 +192,10 @@ class MultiThreadingMode(Frontend):
         unfetched_urls = fetch_unfetched_urls(self.opts["n_urls"], self.opts)
         pool = ThreadPool(self.opts["n_proc"])
         result = pool.map(fetch_url, map(lambda u: (u, self.opts), unfetched_urls))
-        report = reduce(reduce_report, result)
 
-        # print an empty line after the execution
-        print
+        report = {}
+        if result != []:
+            report = reduce(reduce_report, result)
 
         end_time = time.time()
         report["time_elapsed"] = end_time - start_time # in seconds
@@ -205,12 +204,27 @@ class MultiThreadingMode(Frontend):
 
 
 class AutomaticMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
+
     def run(self):
         # If there is nothing to fetch, exit
         # Figure out # of URLs to fetch
         # Figure out optimal # of threads
         # Continuously run multithreading mode
-        pass
+        
+        profile = __import__(self.opts["profile"])
+
+        self.opts["n_urls"] = profile.URLS
+        self.opts["n_proc"] = profile.THREADS
+        self.opts["db_path"] = profile.DB_URI
+        self.opts["url_patterns"] = profile.URL_PATTERNS
+
+        with Database(self.opts["db_path"]) as db:
+            db.insert_urls(profile.ENTRY_POINTS)
+
+        multimode = MultiThreadingMode(self.opts)
+        multimode.run()
 
 
 class CreateDBMode(Frontend):
@@ -259,7 +273,8 @@ class ReportMode(Frontend):
             url_count = db.url_count
             fetched_url_count = db.fetched_url_count
 
-            if session_report != None:
+            if session_report != None and ("count" in session_report):
+                print
                 print "-[ Spider Report: This session ]------------------------------------"
                 print "  Number of fetch requests sent out: %d" % session_report["count"]
                 print "  Number of successful fetches: %s" % session_report["succeeded"]
@@ -268,8 +283,8 @@ class ReportMode(Frontend):
                 print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report["succeeded"] / session_report["count"])
                 print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
                 print "  Number of newly found URLs: %d" % session_report['new_urls_count']
-                print
 
+            print
             print "-[ Spider Report: Overall summary ]------------------------------------"
             print "  Total number of URLs: %d" % url_count
             print "  Number of fetched URLs: %d" % fetched_url_count
@@ -279,7 +294,7 @@ class ReportMode(Frontend):
 
 
 def parse_args(args):
-    optlist, args = getopt.getopt(args, "u:n:t:d:smg", ("create-db", "single", "generate-report"))
+    optlist, args = getopt.getopt(args, "u:n:t:d:f:smag", ("create-db", "single", "generate-report", "auto"))
     
     # default values
     opts = {"log_path":"spider.log"}
@@ -297,6 +312,9 @@ def parse_args(args):
         elif o in ("-u", "--url"):
             opts["url"] = a
 
+        elif o == "-f":
+            opts["profile"] = a
+
         elif o == "--create-db":
             opts["run_mode"] = "create_db"
 
@@ -306,6 +324,9 @@ def parse_args(args):
 
         elif o in ("-m", "--multithreading"):
             opts["run_mode"] = "multithreading"
+
+        elif o in ("-a", "--auto"):
+            opts["run_mode"] = "auto"
 
         elif o in ("-g", "--generate-report"):
             opts["run_mode"] = "generate_report"
@@ -338,6 +359,12 @@ def validate_runtime_options(opts):
         else:
             return (True, "")
 
+    elif (opts["run_mode"] == "auto"):
+        if ("profile" not in opts):
+            return (False, "Specify a profile to run (-f)")
+        else:
+            return (True, "")
+
     return (False, "Unclassified error")
 
 def main():
@@ -352,6 +379,7 @@ def main():
             "create_db": CreateDBMode,
             "single": SingleMode,
             "multithreading": MultiThreadingMode,
+            "auto": AutomaticMode,
             "generate_report": ReportMode,
         }
 
