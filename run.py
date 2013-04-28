@@ -1,6 +1,6 @@
 from spider.database import Database
 from spider.proxy import Proxy
-from spider.spider import Document, FetchTask
+from spider.spider import Document, FetchTask, Storage
 
 #import curses
 import threading
@@ -81,6 +81,9 @@ def fetch_url(args):
     thread_status[tid]["message"] = None
     lock.release()
 
+    # FIXME: This is temporary
+    storage = Storage('file')
+
     with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
         document = db.fetch_document(url)
         has_url = (document != None)
@@ -95,10 +98,12 @@ def fetch_url(args):
                 document = task.run(proxy, db, opts)
                 request_succeeded = 1
 
-                if has_url:
-                    db.update_document(document)
-                else:
-                    db.insert_document(document)
+                # if has_url:
+                #     db.update_document(document)
+                # else:
+                #     db.insert_document(document)
+
+                storage.save(url, document, opts)
 
                 for url_pattern in opts["url_patterns"]:
                     urls = document.extract_urls(url_pattern)
@@ -298,7 +303,7 @@ class ReportMode(Frontend):
 
 
 def parse_args(args):
-    optlist, args = getopt.getopt(args, 'u:n:t:d:f:smag', ('create-db', 'single', 'generate-report', 'auto'))
+    optlist, args = getopt.getopt(args, 'u:n:t:d:f:p:g:smag', ('create-db', 'single', 'generate-report', 'auto'))
     
     # default values
     opts = {'log_path':'spider.log', 'use_proxy': False}
@@ -316,8 +321,11 @@ def parse_args(args):
         elif o in ("-u", "--url"):
             opts["url"] = a
 
-        elif o == "-f":
-            opts["profile"] = a
+        elif o == "-g":
+            opts['storage_dir'] = a
+
+        elif o == "-p":
+            opts['profile'] = a
 
         elif o == "--create-db":
             opts["run_mode"] = "create_db"
