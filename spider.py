@@ -19,8 +19,8 @@ class FetchTask:
     def __init__(self, url):
         self.url = url
 
-    def run(self, proxy=None, db=None):
-        return FetchTask.fetch_url(self.url, proxy, db)
+    def run(self, proxy=None, db=None, opts=None):
+        return FetchTask.fetch_url(self.url, proxy, db, opts)
 
     @staticmethod
     def open_url(url, proxy=None):
@@ -33,7 +33,7 @@ class FetchTask:
         return opener.open(url, timeout=FetchTask.REQUEST_TIMEOUT)
 
     @staticmethod
-    def fetch_url(url, proxy=None, db=None):
+    def fetch_url(url, proxy=None, db=None, opts=None):
 
         start_time = time.time()
         content = None
@@ -43,9 +43,7 @@ class FetchTask:
 
         try:
             f = FetchTask.open_url(url, proxy)
-            content = f.read().decode("utf-8") # content is unicode type at this point
-
-            # TODO: Parse content to produce a JSON string using a function from profile-msft.py
+            raw_content = f.read().decode("utf-8") # content is unicode type at this point
 
             f.close()
             succeeded = True
@@ -61,7 +59,13 @@ class FetchTask:
             if isinstance(proxy, Proxy) and used_proxy:
                 proxy.report_status(succeeded, time_elapsed)
 
-        return Document(url, None, datetime.datetime.now(), content[:50000])
+        return Document(url, None, datetime.datetime.now(), raw_content)
+
+
+class URL:
+    def __init__(self, key, url, last_fetched, fetched_size):
+        self.url = url
+
 
 
 class Document:
