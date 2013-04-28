@@ -4,6 +4,7 @@ from Queue import Queue
 from threading import Thread
 from bs4 import BeautifulSoup, SoupStrainer
 from utils import make_absolute_url
+from __init__ import __version__
 
 import urllib2
 import re
@@ -47,7 +48,7 @@ class FetchTask:
 
             f.close()
             succeeded = True
-            used_proxy = True
+            used_proxy = proxy != None
 
         except Exception as e:
             raise e

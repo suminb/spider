@@ -1,91 +1,87 @@
-from spider import *
-from database import Database
-from proxy import *
-from multiprocessing.pool import ThreadPool
+from spider.database import Database
+from spider.proxy import Proxy
+from spider.spider import Document, FetchTask
 
-import re
-import random
-import thread
+#import curses
 import threading
-import curses
 import getopt
 import sys
+import os
+import time
 
-
-URL_PATTERNS = (
-    r"http://messages.finance.yahoo.com/[A-Z][\/\w %=;&\.\-\+\?]*\/?",
-    r"http://messages.finance.yahoo.com/search[\/\w %=;&\.\-\+\?]*\/?",
-)
-
-def fetch_unfetched_urls(limit):
-    with Database(opts["db_path"]) as db:
-        curs = db.cursor
-        curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (limit,))
-        
-        return map(lambda u: u[0], curs.fetchall())
-
-#
-# Shared resources
-#
-
-# global runtime options
-opts = {}
-
-# single | multithreading
-opts["run_mode"] = "multithreading"
-
-opts["generate_report"] = True
-
-unfetched_urls = []
-
-# screen buffer for curses
-scrbuf = None
-
-proxy_list = None
-
-status = {'processed_urls_count':0}
-thread_status = {}
-lock = threading.Lock()
-screen = curses.initscr()
-
+# FIXME: Temporary
 def load_proxy_list(file_name):
+    import re
     with open(file_name) as f:
         return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
 
-def truncate_middle(str, max_length):
-    str_len = len(str)
-    if str_len > max_length:
-        m = (max_length / 2) 
-        return "%s...%s" % (str[:m-2], str[str_len-m+1:])
-    else:
-        return str
+proxy_list = load_proxy_list("proxy_list.txt")
 
-def fetch_url(url):
+# FIXME: Temporary
+lock = threading.Lock()
+
+# FIXME: Temporary
+status = {'processed_urls_count':0, "fetched_size":0}
+
+# FIXME: Temporary
+# Status infor per thread
+thread_status = {}
+
+# FIXME: Temporary
+def fetch_unfetched_urls(limit, opts):
+    with Database(opts["db_path"]) as db:
+        curs = db.cursor
+        curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (int(limit),))
+        
+        return map(lambda u: u[0], curs.fetchall())
+
+
+def reduce_report(row1, row2):
+    # Assuming row1 and row2 have share the same keys
+
+    r = {}
+    for key in row1:
+        r[key] = row1[key] + row2[key]
+
+    return r
+
+
+def fetch_url(args):
+    url, opts = args
+
+    import urllib2
+    import random
+    import thread
+    import contextlib
+
     # thread ID
     tid = thread.get_ident()
 
-    # randomly choose a proxy server
-    pxy = random.choice(proxy_list)
-    proxy = Proxy(pxy[0], pxy[1], pxy[2])
+    if opts['use_proxy']:
+        # randomly choose a proxy server
+        pxy = random.choice(proxy_list)
+        proxy = Proxy(pxy[0], pxy[1], pxy[2])
+    else:
+        proxy = None
 
     lock.acquire()
     if not tid in thread_status:
         thread_status[tid] = {
-                'url':None,
-                'proxy':None,
-                'message':None,
-                'succeeded':0,
-                'new_urls_count':0,
-                'fetched_size':0
+                "url":None,
+                "proxy":None,
+                "message":None,
+                "succeeded":0,
+                "new_urls_count":0,
+                "fetched_size":0
         }
 
     # URL currently being fetched
-    thread_status[tid]['url'] = url
-    thread_status[tid]['proxy'] = proxy
-    thread_status[tid]['message'] = None
+    thread_status[tid]["url"] = url
+    thread_status[tid]["proxy"] = proxy
+    thread_status[tid]["message"] = None
     lock.release()
 
-    with Database(opts["db_path"]) as db:
+    with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
         document = db.fetch_document(url)
         has_url = (document != None)
 
@@ -93,10 +89,10 @@ def fetch_url(url):
         new_urls_count = 0        
 
         if document == None or document.content == None:
-            #print "Th%d: Fetching %s via %s" % (thread_seq, url, proxy)
+            log.write("[%x] Fetching %s via %s\n" % (tid, url, proxy))
             task = FetchTask(url)
             try:
-                document = task.run(proxy, db)
+                document = task.run(proxy, db, opts)
                 request_succeeded = 1
 
                 if has_url:
@@ -104,115 +100,208 @@ def fetch_url(url):
                 else:
                     db.insert_document(document)
 
-                for url_pattern in URL_PATTERNS:
+                for url_pattern in opts["url_patterns"]:
                     urls = document.extract_urls(url_pattern)
                     new_urls_count += len(urls)
                     db.insert_urls(urls)
-                #print "Th:%d: Found %d URLs in %s." % (thread_seq, new_urls_count, url)
+                log.write("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
 
             except urllib2.URLError as e:
-                #print 'URLError has been raised. Probably a proxy problem (%s).' % proxy
+                log.write("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
                 #print e
-                thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
+                #thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
 
             except urllib2.HTTPError as e:
-                #print 'HTTP error has occoured. Deleting url %s' % url
-                thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
+                log.write("HTTP error has occoured. Deleting url %s\n" % url)
+                #thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
                 db.delete_url(url)
 
             except Exception as e:
-                #print 'Unclassified exception has occured: %s' % e
-                thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
+                log.write("Unclassified exception has occured: %s\n" % e)
+                print e
+                #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
 
         # number of bytes of the fetched document
         fetched_size = len(document.content) if document != None and document.content != None else 0
 
         lock.acquire()
-        status['processed_urls_count'] += 1
+        status["processed_urls_count"] += 1
+        status["fetched_size"] += fetched_size
         thread_status[tid]['new_urls_count'] = new_urls_count
 
-        if opts["run_mode"] == "multithreading":
-            refersh_screen()
+        sys.stdout.write("\rFeteching %d of %d (%s)..." % (
+            status["processed_urls_count"],
+            opts["n_urls"],
+            ReportMode.human_readable_size(status["fetched_size"])))
+        sys.stdout.flush()
     
         lock.release()
 
-        return {'succeeded':request_succeeded, 'new_urls_count':new_urls_count, 'fetched_size':fetched_size}
+        return {"count": 1,
+                "succeeded": request_succeeded,
+                'new_urls_count': new_urls_count,
+                'fetched_size': fetched_size,
+            }
 
-def reduce_report(row1, row2):
-    return {'succeeded':row1['succeeded']+row2['succeeded'],
-            'new_urls_count':row1['new_urls_count']+row2['new_urls_count'],
-            'fetched_size':row1['fetched_size']+row2['fetched_size']}
 
-def refersh_screen():
-    screen.erase()
+class Frontend:
+    def __init__(self, opts):
+        self.opts = opts
 
-    # screen width and height
-    height, width = screen.getmaxyx()
-    
-    for key in thread_status.keys()[:height-3]:
-        screen.addstr("[%x] " % key)
-        if thread_status[key]['message'] == None:
-            screen.addstr("Fetching %s via %s\n" % (truncate_middle(thread_status[key]['url'], 50), thread_status[key]['proxy']))
-        else:
-            screen.addstr(thread_status[key]['message'] + "\n")
+        # shared across multiple threads
+        self.shared = {}
 
-    if height - 3 < opts["n_proc"]:
-        screen.addstr("... and %d more threads are running ...\n" % (opts["n_proc"] - (height - 3)))
+    def run(self):
+        raise Exception("Not implemented")
 
-    screen.addstr("(%d/%d)" % (status['processed_urls_count'], opts["n_urls"]))
+    def prepare_curses(self):
+        self.screen = curses.initscr()
 
-    screen.refresh()
+    def cleanup_curses(self):
+        curses.endwin()
 
-def generate_report(report=None):
-    with Database(opts["db_path"]) as db:
-        url_count = db.url_count
-        fetched_url_count = db.fetched_url_count
 
-        if report != None:
-            print
-            print "-[ Spider Report: This session ]------------------------------------"
-            print "  Number of fetch requests sent out: %d" % (opts["n_urls"])
-            print "  Number of successful fetches: %s" % report['succeeded']
-            print "  Live proxy hit ratio: %.02f%%" % (100.0 * report['succeeded'] / opts["n_urls"])
-            print "  Sum of size of fetched documents: %d" % report['fetched_size']
-            print "  Number of newly found URLs: %d" % report['new_urls_count']
+class SingleMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
 
+    def run(self):
+        start_time = time.time()
+
+        report = fetch_url((self.opts["url"], self.opts))
+
+        # print an empty line after the execution
         print
-        print "-[ Spider Report: Overall summary ]------------------------------------"
-        print "  Total number of URLs: %d" % url_count
-        print "  Number of fetched URLs: %d" % fetched_url_count
-        if url_count > 0:
-            print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
 
-def prepare_curses():
-    # initializes curses screen
-    screen = curses.initscr()
+        end_time = time.time()
+        report["time_elapsed"] = end_time - start_time # in seconds
 
-    # stops curses from outputting key presses from the user onto the screen
-    curses.noecho() 
-
-    # removes the cursor from the screen
-    curses.curs_set(0)
-
-    # sets the mode which the screen uses when capturing key presses 
-    screen.keypad(1)
-
-def cleanup_curses():
-    curses.endwin()
-
-def create_sqlite3_db(path):
-    with Database(path) as db:
-        with open("scheme.txt") as f:
-            # FIXME: This may break in some cases
-            for sql in f.read().split(";"):
-                db.execute(sql)
-
-def usage():
-    print "usage: %s [-ntd]" % sys.argv[0]
+        ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
-def main():
-    optlist, args = getopt.getopt(sys.argv[1:], "n:t:d:sr", ("create-db=", "single=", "generate-report"))
+class MultiThreadingMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
+        #super(Frontend, self).prepare_curses()
+
+    def __del__(self):
+        #super(Frontend, self).cleanup_curses()
+        pass
+
+    def run(self):
+        from multiprocessing.pool import ThreadPool
+
+        start_time = time.time()
+
+        unfetched_urls = fetch_unfetched_urls(self.opts["n_urls"], self.opts)
+        pool = ThreadPool(self.opts["n_proc"])
+        result = pool.map(fetch_url, map(lambda u: (u, self.opts), unfetched_urls))
+
+        report = {}
+        if result != []:
+            report = reduce(reduce_report, result)
+
+        end_time = time.time()
+        report["time_elapsed"] = end_time - start_time # in seconds
+
+        ReportMode.generate_report(self.opts["db_path"], report, self.opts)
+
+
+class AutomaticMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
+
+    def run(self):
+        # If there is nothing to fetch, exit
+        # Figure out # of URLs to fetch
+        # Figure out optimal # of threads
+        # Continuously run multithreading mode
+        
+        profile = __import__(self.opts["profile"])
+
+        # TODO: Any better way to handle this?
+        self.opts["n_urls"] = profile.URLS
+        self.opts["n_proc"] = profile.THREADS
+        self.opts["db_path"] = profile.DB_URI
+        self.opts["url_patterns"] = profile.URL_PATTERNS
+        self.opts["process_content"] = profile.process_content
+
+        with Database(self.opts["db_path"]) as db:
+            db.insert_urls(profile.ENTRY_POINTS)
+
+        multimode = MultiThreadingMode(self.opts)
+        multimode.run()
+
+
+class CreateDBMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
+
+    def run(self):
+        with Database(self.opts["db_path"]) as db:
+            with open("scheme.txt") as f:
+                # FIXME: This may break in some cases
+                for sql in f.read().split(";"):
+                    db.execute(sql)
+
+
+class ReportMode(Frontend):
+    def __int__(self, opts):
+        super(Frontend, self).__init__(opts)
+
+    def run(self):
+        if "db_path" not in self.opts:
+            raise Exception("Database path is not specified.")
+        else:
+            ReportMode.generate_report(self.opts["db_path"])
+
+    @staticmethod
+    def human_readable_size(size):
+        if size < 1024:
+            return "%d bytes" % size
+        
+        elif size < 1024**2:
+            return "%.02f KB" % (float(size) / 1024)
+
+        elif size < 1024**3:
+            return "%.02f MB" % (float(size) / 1024**2)
+
+        else:
+            return "%.02f GB" % (float(size) / 1024**3)
+
+    @staticmethod
+    def generate_report(db_path, session_report=None, opts=None):
+        """Prints out a status report to standard output. This function may be called from outside this class."""
+
+        with Database(db_path) as db:
+            url_count = db.url_count
+            fetched_url_count = db.fetched_url_count
+
+            if session_report != None and ("count" in session_report):
+                print
+                print "-[ Spider Report: This session ]------------------------------------"
+                print "  Number of fetch requests sent out: %d" % session_report["count"]
+                print "  Number of successful fetches: %s" % session_report["succeeded"]
+                print "  Time elapsed: %.03f sec" % session_report["time_elapsed"]
+                print "  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"])
+                print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report["succeeded"] / session_report["count"])
+                print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
+                print "  Number of newly found URLs: %d" % session_report['new_urls_count']
+
+            print
+            print "-[ Spider Report: Overall summary ]------------------------------------"
+            print "  Total number of URLs: %d" % url_count
+            print "  Number of fetched URLs: %d" % fetched_url_count
+            if url_count > 0:
+                print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
+                print "  Database file size: %s" % ReportMode.human_readable_size(os.path.getsize(db_path))
+
+
+def parse_args(args):
+    optlist, args = getopt.getopt(args, 'u:n:t:d:f:smag', ('create-db', 'single', 'generate-report', 'auto'))
+    
+    # default values
+    opts = {'log_path':'spider.log', 'use_proxy': False}
 
     for o, a in optlist:
         if o == '-n':
@@ -224,54 +313,85 @@ def main():
         elif o == '-d':
             opts["db_path"] = a
 
+        elif o in ("-u", "--url"):
+            opts["url"] = a
+
+        elif o == "-f":
+            opts["profile"] = a
+
         elif o == "--create-db":
-            create_sqlite3_db(a)
+            opts["run_mode"] = "create_db"
 
         elif o in ("-s", "--single"):
             opts["run_mode"] = "single"
-            opts["url"] = a
+            opts["n_urls"] = 1
 
-        elif o == "-r":
-            opts["generate_report"] = True
+        elif o in ("-m", "--multithreading"):
+            opts["run_mode"] = "multithreading"
 
-        elif o == "--generate-report":
+        elif o in ("-a", "--auto"):
+            opts["run_mode"] = "auto"
+
+        elif o in ("-g", "--generate-report"):
             opts["run_mode"] = "generate_report"
 
+    return opts
 
-    if opts["run_mode"] == "single":
-        opts["n_urls"] = 1
-        report = fetch_url(a)
+def validate_runtime_options(opts):
+    if "run_mode" not in opts:
+        return (False, "Run mode is not specified")
 
-        cleanup_curses()
+    elif (opts["run_mode"] == "create_db"):
+        if ("db_path" not in opts):
+            return (False, "SQLite3 database path must be supplied (-d)")
+        else:
+            return (True, "")
 
-        if opts["generate_report"]:
-            generate_report(report)
+    elif (opts["run_mode"] == "single") and ("db_path" in opts) and ("url" in opts):
+        return (True, "")
 
-    elif opts["run_mode"] == "multithreading":
-        prepare_curses()
-        unfetched_urls = fetch_unfetched_urls(opts["n_urls"])
-        pool = ThreadPool(opts["n_proc"])
-        result = pool.map(fetch_url, unfetched_urls)
-        report = reduce(reduce_report, result)
+    elif (opts["run_mode"] == "multithreading"):
+        if ("db_path" not in opts):
+            return (False, "SQLite3 database path must be supplied (-d)")
 
-        cleanup_curses()
+        elif ("n_urls" not in opts):
+            return (False, "Specify the number of URLs to fetch (-n)")
 
-        if opts["generate_report"]:
-            generate_report(report)
+        elif ("n_proc" not in opts):
+            return (False, "Specify the number of threads (-t)")
 
-    elif opts["run_mode"] == "create_db":
-        pass
+        else:
+            return (True, "")
 
-    elif opts["run_mode"] == "generate_report":
-        cleanup_curses()
-        generate_report()
+    elif (opts["run_mode"] == "auto"):
+        if ("profile" not in opts):
+            return (False, "Specify a profile to run (-f)")
+        else:
+            return (True, "")
 
+    return (False, "Unclassified error")
 
-if __name__ == '__main__':
-    proxy_list = load_proxy_list("proxy_list.txt")
-    try:
-        main()
-    except:
-        curses.endwin()
-        import traceback
-        traceback.print_exc()
+def main():
+    opts = parse_args(sys.argv[1:])
+
+    valid, message = validate_runtime_options(opts)
+
+    if valid:
+        run_mode = opts["run_mode"]
+
+        fc = {
+            "create_db": CreateDBMode,
+            "single": SingleMode,
+            "multithreading": MultiThreadingMode,
+            "auto": AutomaticMode,
+            "generate_report": ReportMode,
+        }
+
+        fend = fc[run_mode](opts)
+        fend.run()
+
+    else:
+        sys.stderr.write(message + "\n")
+
+if __name__ == "__main__":
+    main()
