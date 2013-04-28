@@ -113,8 +113,22 @@ class Document:
         return urls
 
 
-if __name__ == "__main__":
-    doc = Document("http://finance.yahoo.com/sample.html", "text/html", None, unicode(open("debug.html").read().decode("utf-8")))
-    from patterns import URL_PATTERNS
-    print doc.extract_urls(URL_PATTERNS[0])
+class Storage:
+    """Represents a storage engine."""
+
+    engine_types = ('file', 'sqlite3')
+
+    def __init__(self, engine_type):
+        if engine_type in self.engine_types:
+            self.engine_type = engine_type
+        else:
+            raise Exception("Storage engine type '%s' is not supported." % engine_type)
+
+    def save(self, url, document, opts):
+        if self.engine_type == 'file':
+            pass
+        elif self.engine_type == 'sqlite3':
+            pass
+        else:
+            pass
 
