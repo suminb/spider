@@ -104,6 +104,7 @@ def fetch_url(args):
                 #     db.insert_document(document)
 
                 storage.save(url, document, opts)
+                db.mark_as_fetched(document)
 
                 for url_pattern in opts["url_patterns"]:
                     urls = document.extract_urls(url_pattern)

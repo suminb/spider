@@ -114,6 +114,11 @@ class Database:
         else:
             return Document(row[0], row[1], row[2], row[3])
 
+    def mark_as_fetched(self, document, commit=True):
+        from datetime import datetime
+        self.execute("UPDATE document SET last_fetched=? WHERE url=?",
+            (datetime.now(), document.url), commit)
+
     def export(self):
         """Export documents to files."""
         pass
