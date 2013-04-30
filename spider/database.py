@@ -1,4 +1,5 @@
 import sqlite3
+import logging
 
 class Database:
 
@@ -89,8 +90,7 @@ class Database:
             try:
                 self.execute("INSERT INTO document (url) VALUES (?)", (url,), False)
             except sqlite3.IntegrityError as e:
-                # Simply ignore it if url already exists
-                pass
+                logging.warning("URL '%s' already exists." % url)
         self.commit()
 
     def delete_url(self, url, commit=True):

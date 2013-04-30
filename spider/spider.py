@@ -10,6 +10,7 @@ import urllib2
 import re
 import datetime
 import time
+import logging
 
 
 class FetchTask:
@@ -51,7 +52,7 @@ class FetchTask:
             used_proxy = proxy != None
 
         except Exception as e:
-            raise e
+            logging.error(e)
 
         finally:
             end_time = time.time()
@@ -138,6 +139,7 @@ class Storage:
             file_path = os.path.join(storage_dir, file_name)
 
             with open(file_path, 'w') as f:
+                f.write('<!-- %s -->\n' % url)
                 f.write(document.content.encode('utf-8'))
 
             return file_name

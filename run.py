@@ -8,6 +8,7 @@ import getopt
 import sys
 import os
 import time
+import logging
 
 # FIXME: Temporary
 def load_proxy_list(file_name):
@@ -98,34 +99,30 @@ def fetch_url(args):
                 document = task.run(proxy, db, opts)
                 request_succeeded = 1
 
-                # if has_url:
-                #     db.update_document(document)
-                # else:
-                #     db.insert_document(document)
-
                 storage.save(url, document, opts)
                 db.mark_as_fetched(document)
 
-                for url_pattern in opts["url_patterns"]:
-                    urls = document.extract_urls(url_pattern)
+                if 'url_patterns' in opts:
+                    for url_pattern in opts["url_patterns"]:
+                        urls = document.extract_urls(url_pattern)
+                        new_urls_count += len(urls)
+                        db.insert_urls(urls)
+                else:
+                    urls = document.extract_urls()
                     new_urls_count += len(urls)
                     db.insert_urls(urls)
-                log.write("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
+
+                logging.info("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
 
             except urllib2.URLError as e:
-                log.write("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
-                #print e
-                #thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
-
+                logging.error("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
+               
             except urllib2.HTTPError as e:
-                log.write("HTTP error has occoured. Deleting url %s\n" % url)
-                #thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
+                logging.error("HTTP error has occoured. Deleting url %s\n" % url)
                 db.delete_url(url)
 
             except Exception as e:
-                log.write("Unclassified exception has occured: %s\n" % e)
-                print e
-                #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
+                logging.error("Unclassified exception has occured: %s\n" % e)
 
         # number of bytes of the fetched document
         fetched_size = len(document.content) if document != None and document.content != None else 0
