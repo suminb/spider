@@ -134,7 +134,7 @@ def fetch_url(args):
         status["fetched_size"] += fetched_size
         thread_status[tid]['new_urls_count'] = new_urls_count
 
-        sys.stdout.write("\rFeteching %d of %d (%s)..." % (
+        sys.stdout.write("\rFetching %d of %d (%s)..." % (
             status["processed_urls_count"],
             opts["n_urls"],
             ReportMode.human_readable_size(status["fetched_size"])))
@@ -212,7 +212,7 @@ class MultiThreadingMode(Frontend):
         ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
-class AutomaticMode(Frontend):
+class ProfileMode(Frontend):
     def __int__(self, opts):
         super(Frontend, self).__init__(opts)
 
@@ -229,6 +229,7 @@ class AutomaticMode(Frontend):
         self.opts["n_proc"] = profile.THREADS
         self.opts["db_path"] = profile.DB_URI
         self.opts["url_patterns"] = profile.URL_PATTERNS
+        self.opts["storage_dir"] = profile.STORAGE_DIR
         self.opts["process_content"] = profile.process_content
 
         with Database(self.opts["db_path"]) as db:
@@ -310,38 +311,39 @@ def parse_args(args):
 
     for o, a in optlist:
         if o == '-n':
-            opts["n_urls"] = int(a)
+            opts['n_urls'] = int(a)
 
         elif o == '-t':
-            opts["n_proc"] = int(a)
+            opts['n_proc'] = int(a)
 
         elif o == '-d':
-            opts["db_path"] = a
+            opts['db_path'] = a
 
-        elif o in ("-u", "--url"):
-            opts["url"] = a
+        elif o in ('-u', '--url'):
+            opts['url'] = a
 
-        elif o == "-g":
+        elif o == '-g':
             opts['storage_dir'] = a
 
-        elif o == "-p":
+        elif o == '-p':
+            opts['run_mode'] = 'profile'
             opts['profile'] = a
 
-        elif o == "--create-db":
-            opts["run_mode"] = "create_db"
+        elif o == '--create-db':
+            opts['run_mode'] = 'create_db'
 
-        elif o in ("-s", "--single"):
-            opts["run_mode"] = "single"
-            opts["n_urls"] = 1
+        elif o in ('-s', '--single'):
+            opts['run_mode'] = 'single'
+            opts['n_urls'] = 1
 
-        elif o in ("-m", "--multithreading"):
-            opts["run_mode"] = "multithreading"
+        elif o in ('-m', '--multithreading'):
+            opts['run_mode'] = 'multithreading'
 
-        elif o in ("-a", "--auto"):
-            opts["run_mode"] = "auto"
+        elif o in ('-a', '--auto'):
+            opts['run_mode'] = 'auto'
 
-        elif o in ("-g", "--generate-report"):
-            opts["run_mode"] = "generate_report"
+        elif o in ('-g', '--generate-report'):
+            opts['run_mode'] = 'generate_report'
 
     return opts
 
@@ -371,7 +373,7 @@ def validate_runtime_options(opts):
         else:
             return (True, "")
 
-    elif (opts["run_mode"] == "auto"):
+    elif (opts["run_mode"] == "profile"):
         if ("profile" not in opts):
             return (False, "Specify a profile to run (-f)")
         else:
@@ -391,7 +393,8 @@ def main():
             "create_db": CreateDBMode,
             "single": SingleMode,
             "multithreading": MultiThreadingMode,
-            "auto": AutomaticMode,
+            #"auto": AutomaticMode,
+            "profile": ProfileMode,
             "generate_report": ReportMode,
         }
 

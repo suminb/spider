@@ -127,19 +127,18 @@ class Storage:
     def save(self, url, document, opts):
         if self.engine_type == 'file':
             import sys, os
-            import base64
+            import hashlib
 
             storage_dir = os.path.abspath(opts['storage_dir'])
 
             if not os.path.exists(storage_dir):
                 os.mkdir(storage_dir)
 
-            # Decided to use a base32 encoding because some file systems are case-insensitive.
-            file_name = base64.b32encode(url)
+            file_name = hashlib.sha224(url).hexdigest()
             file_path = os.path.join(storage_dir, file_name)
 
             with open(file_path, 'w') as f:
-                f.write(document.content)
+                f.write(document.content.encode('utf-8'))
 
             return file_name
 
