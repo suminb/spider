@@ -37,31 +37,30 @@ class FetchTask:
     @staticmethod
     def fetch_url(url, proxy=None, db=None, opts=None):
 
-        start_time = time.time()
         content = None
         has_url = False
         succeeded = False
         used_proxy = False
+        document = None
 
-        try:
-            f = FetchTask.open_url(url, proxy)
+        print proxy
+
+        if proxy != None:
+            raw_content = proxy.fetch_url(url).text
+        else:
+            f = FetchTask.open_url(url)
             raw_content = f.read().decode("utf-8") # content is unicode type at this point
-
             f.close()
-            succeeded = True
-            used_proxy = proxy != None
 
-        except Exception as e:
-            logging.error(e)
+        succeeded = True
+        used_proxy = proxy != None
 
-        finally:
-            end_time = time.time()
-            time_elapsed = long((end_time - start_time) * 1000)
+        document = Document(url, None, datetime.datetime.now(), raw_content)
 
-            if isinstance(proxy, Proxy) and used_proxy:
-                proxy.report_status(succeeded, time_elapsed)
+        if db != None:
+            db.mark_as_fetched(document)
 
-        return Document(url, None, datetime.datetime.now(), raw_content)
+        return document
 
 
 class URL:

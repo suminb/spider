@@ -10,13 +10,8 @@ import os
 import time
 import logging
 
-# FIXME: Temporary
-def load_proxy_list(file_name):
-    import re
-    with open(file_name) as f:
-        return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
+import proxybank
 
-proxy_list = load_proxy_list("proxy_list.txt")
 
 # FIXME: Temporary
 lock = threading.Lock()
@@ -51,7 +46,6 @@ def fetch_url(args):
     url, opts = args
 
     import urllib2
-    import random
     import thread
     import contextlib
 
@@ -60,8 +54,7 @@ def fetch_url(args):
 
     if opts['use_proxy']:
         # randomly choose a proxy server
-        pxy = random.choice(proxy_list)
-        proxy = Proxy(pxy[0], pxy[1], pxy[2])
+        proxy = proxybank.select(1)
     else:
         proxy = None
 
@@ -84,45 +77,44 @@ def fetch_url(args):
 
     # FIXME: This is temporary
     storage = Storage('file')
+    db = Database(opts["db_path"]) if 'db_path' in opts else None
 
-    with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
-        document = db.fetch_document(url)
-        has_url = (document != None)
+    document = db.fetch_document(url) if db != None else None
+    has_url = (document != None)
 
-        request_succeeded = 0
-        new_urls_count = 0        
+    request_succeeded = 0
+    new_urls_count = 0
 
-        if document == None or document.content == None:
-            log.write("[%x] Fetching %s via %s\n" % (tid, url, proxy))
-            task = FetchTask(url)
-            try:
-                document = task.run(proxy, db, opts)
-                request_succeeded = 1
+    if document == None or document.content == None:
+        logging.info("[%x] Fetching %s via %s\n" % (tid, url, proxy))
+        task = FetchTask(url)
+        try:
+            document = task.run(proxy, db, opts)
+            request_succeeded = 1
 
-                storage.save(url, document, opts)
-                db.mark_as_fetched(document)
-
-                if 'url_patterns' in opts:
-                    for url_pattern in opts["url_patterns"]:
-                        urls = document.extract_urls(url_pattern)
-                        new_urls_count += len(urls)
-                        db.insert_urls(urls)
-                else:
-                    urls = document.extract_urls()
+            storage.save(url, document, opts)
+            
+            if 'url_patterns' in opts:
+                for url_pattern in opts["url_patterns"]:
+                    urls = document.extract_urls(url_pattern)
                     new_urls_count += len(urls)
-                    db.insert_urls(urls)
+                    if db != None: db.insert_urls(urls)
+            else:
+                urls = document.extract_urls()
+                new_urls_count += len(urls)
+                if db != None: db.insert_urls(urls)
 
-                logging.info("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
+            logging.info("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
 
-            except urllib2.URLError as e:
-                logging.error("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
-               
-            except urllib2.HTTPError as e:
-                logging.error("HTTP error has occoured. Deleting url %s\n" % url)
-                db.delete_url(url)
+        except urllib2.URLError as e:
+            logging.error("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
+           
+        except urllib2.HTTPError as e:
+            logging.error("HTTP error has occoured. Deleting url %s\n" % url)
+            if db != None: db.delete_url(url)
 
-            except Exception as e:
-                logging.error("Unclassified exception has occured: %s\n" % e)
+        except Exception as e:
+            logging.error("Unclassified exception has occured: %s\n" % e)
 
         # number of bytes of the fetched document
         fetched_size = len(document.content) if document != None and document.content != None else 0
@@ -179,7 +171,10 @@ class SingleMode(Frontend):
         end_time = time.time()
         report["time_elapsed"] = end_time - start_time # in seconds
 
-        ReportMode.generate_report(self.opts["db_path"], report, self.opts)
+        ReportMode.generate_report(
+            self.opts["db_path"] if 'db_path' in self.opts else None,
+            report,
+            self.opts)
 
 
 class MultiThreadingMode(Frontend):
@@ -277,21 +272,22 @@ class ReportMode(Frontend):
     def generate_report(db_path, session_report=None, opts=None):
         """Prints out a status report to standard output. This function may be called from outside this class."""
 
-        with Database(db_path) as db:
-            url_count = db.url_count
-            fetched_url_count = db.fetched_url_count
+        db = Database(db_path) if db_path != None else None
+        url_count = db.url_count if db != None else 0
+        fetched_url_count = db.fetched_url_count if db != None else 0
 
-            if session_report != None and ("count" in session_report):
-                print
-                print "-[ Spider Report: This session ]------------------------------------"
-                print "  Number of fetch requests sent out: %d" % session_report["count"]
-                print "  Number of successful fetches: %s" % session_report["succeeded"]
-                print "  Time elapsed: %.03f sec" % session_report["time_elapsed"]
-                print "  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"])
-                print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report["succeeded"] / session_report["count"])
-                print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
-                print "  Number of newly found URLs: %d" % session_report['new_urls_count']
+        if session_report != None and ("count" in session_report):
+            print
+            print "-[ Spider Report: This session ]------------------------------------"
+            print "  Number of fetch requests sent out: %d" % session_report["count"]
+            print "  Number of successful fetches: %s" % session_report["succeeded"]
+            print "  Time elapsed: %.03f sec" % session_report["time_elapsed"]
+            print "  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"])
+            print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report["succeeded"] / session_report["count"])
+            print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
+            print "  Number of newly found URLs: %d" % session_report['new_urls_count']
 
+        if db != None:
             print
             print "-[ Spider Report: Overall summary ]------------------------------------"
             print "  Total number of URLs: %d" % url_count
@@ -302,10 +298,12 @@ class ReportMode(Frontend):
 
 
 def parse_args(args):
-    optlist, args = getopt.getopt(args, 'u:n:t:d:f:p:g:smag', ('create-db', 'single', 'generate-report', 'auto'))
+    optlist, args = getopt.getopt(args, 'u:n:t:d:f:p:g:smagx', ('create-db', 'single', 'generate-report', 'auto'))
     
     # default values
-    opts = {'log_path':'spider.log', 'use_proxy': False}
+    opts = {'log_path': 'spider.log',
+            'use_proxy': False,
+            'storage_dir': 'storage'}
 
     for o, a in optlist:
         if o == '-n':
@@ -322,6 +320,9 @@ def parse_args(args):
 
         elif o == '-g':
             opts['storage_dir'] = a
+
+        elif o == '-x':
+            opts['use_proxy'] = True
 
         elif o == '-p':
             opts['run_mode'] = 'profile'
@@ -355,7 +356,7 @@ def validate_runtime_options(opts):
         else:
             return (True, "")
 
-    elif (opts["run_mode"] == "single") and ("db_path" in opts) and ("url" in opts):
+    elif (opts["run_mode"] == "single") and ("url" in opts):
         return (True, "")
 
     elif (opts["run_mode"] == "multithreading"):
