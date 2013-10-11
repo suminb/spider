@@ -3,11 +3,12 @@ import logging
 
 class Database:
 
-    def __init__(self, file_name):
+    def __init__(self, file_name, logger=logging):
         """
         file_name -- Name of sqlite3 database file.
         """
         self.file_name = file_name
+        self.logger = logger
 
     def __enter__(self):
         self.connect()
@@ -90,7 +91,7 @@ class Database:
             try:
                 self.execute("INSERT INTO document (url) VALUES (?)", (url,), False)
             except sqlite3.IntegrityError as e:
-                logging.warning("URL '%s' already exists." % url)
+                self.logger.warning("URL '{}' already exists.".format(url))
         self.commit()
 
     def delete_url(self, url, commit=True):

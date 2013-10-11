@@ -1,4 +1,4 @@
-from spider import Document, FetchTask
+from spider import Document, FetchTask, Storage
 from spider.database import Database
 from hallucination import ProxyFactory
 
@@ -8,7 +8,10 @@ import sys, os
 import logging
 
 logger = logging.getLogger('spider')
-logger.addHandler(logging.StreamHandler(sys.stdout))
+handler = logging.FileHandler('spider.log')
+handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+#logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 proxy_factory = None
@@ -24,7 +27,7 @@ def reduce_report(row1, row2):
 
 # FIXME: Temporary
 def fetch_unfetched_urls(limit, opts):
-    with Database(opts["db_path"]) as db:
+    with Database(opts["db_path"], logger=logger) as db:
         curs = db.cursor
         curs.execute("SELECT url FROM document WHERE timestamp IS NULL LIMIT ?", (int(limit),))
         
@@ -42,7 +45,12 @@ def fetch_url(args):
     # thread ID
     tid = thread.get_ident()
 
-    with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
+    with contextlib.nested(
+        Database(opts["db_path"], logger=logger),
+        open(opts["log_path"], "a")) as (db, log):
+
+        storage = Storage('file')
+
         url_entry = db.fetch_document(url)
         has_url = (url_entry != None)
 
@@ -55,13 +63,19 @@ def fetch_url(args):
             pass
 
         if not fetch_flag:
-            log.write("URL entry (%s) already exists. Skipping..." % url)
+            logger.info("URL entry (%s) already exists. Skipping..." % url)
         else:
-            task = FetchTask(url)
+
+            task = FetchTask(url, logger=logger)
             task.proxy_factory = proxy_factory
             try:
                 url_entry = task.run(db, opts)
                 request_succeeded = 1
+
+                sys.stdout.write('+' if request_succeeded != 0 else '-')
+                sys.stdout.flush()
+
+                storage.save(url, url_entry, opts)
 
                 if has_url:
                     db.update_document(url_entry)
@@ -73,7 +87,7 @@ def fetch_url(args):
                         urls = url_entry.extract_urls(url_pattern)
                         new_urls_count += len(urls)
                         db.insert_urls(urls)
-                    log.write("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
+                    logger.info("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
 
 
                 if "process_content" in opts:
@@ -96,6 +110,10 @@ def fetch_url(args):
 class Frontend:
     def __init__(self, opts):
         self.opts = opts
+
+        # Default values
+        if not 'log_path' in opts:
+            self.opts['log_path'] = 'spider.log'
 
         # shared across multiple threads
         self.shared = {}
@@ -155,7 +173,7 @@ class CreateDBMode(Frontend):
         super(Frontend, self).__init__(opts)
 
     def run(self):
-        with Database(self.opts["db_path"]) as db:
+        with Database(self.opts["db_path"], logger=logger) as db:
             with open("scheme.txt") as f:
                 # FIXME: This may break in some cases
                 for sql in f.read().split(";"):
@@ -192,7 +210,7 @@ class ReportMode(Frontend):
         
         from spider.database import Database
 
-        with Database(db_path) as db:
+        with Database(db_path, logger=logger) as db:
             url_count = db.url_count
             fetched_url_count = db.fetched_url_count
 
@@ -235,8 +253,9 @@ class ProfileMode(Frontend):
         self.opts['storage_dir'] = profile.STORAGE_DIR
         self.opts['process_content'] = profile.process_content
         self.opts['hallucination_db_uri'] = profile.HALLUCINATION_DB_URI
+        self.opts['user_agent'] = profile.USER_AGENT
 
-        with Database(self.opts['db_path']) as db:
+        with Database(self.opts['db_path'], logger=logger) as db:
             db.insert_urls(profile.ENTRY_POINTS)
         
 
@@ -247,9 +266,6 @@ class ProfileMode(Frontend):
 
 def parse_args(args):
     optlist, args = getopt.getopt(args, "u:n:t:d:p:smag", ("create-db", "single", "generate-report", "auto"))
-    
-    # default values
-    opts = {"log_path":"spider.log"}
 
     for o, a in optlist:
         if o == '-n':

@@ -8,6 +8,7 @@ from __init__ import __version__
 import re
 import datetime
 import time
+import requests
 import logging
 
 
@@ -16,22 +17,36 @@ class FetchTask:
     USER_AGENT = 'Spider v%s' % __version__
     REQUEST_TIMEOUT = 10
 
-    def __init__(self, url):
+    def __init__(self, url, logger=logging):
         self.url = url
+        self.proxy_factory = None
+        self.logger = logger
 
     def run(self, db=None, opts=None):
+        if 'user_agent' in opts:
+            self.USER_AGENT = opts['user_agent']
+
         return FetchTask.fetch_url(self.url, self.proxy_factory, db, opts)
 
     @staticmethod
-    def fetch_url(url, proxy_factory, db=None, opts=None):
+    def fetch_url(url, proxy_factory=None, db=None, opts=None):
 
         content = None
         has_url = False
         succeeded = False
         document = None
+        raw_content = None
 
-        req = proxy_factory.make_request(url)
-        raw_content = req.text
+        try:
+            if proxy_factory != None:
+                req = proxy_factory.make_request(url)
+            else:
+                req = requests.get(url)
+
+            raw_content = req.text
+
+        except Exception as e:
+            logger.exception(e)
 
         succeeded = True
 
@@ -114,7 +129,7 @@ class Storage:
             if not os.path.exists(storage_dir):
                 os.mkdir(storage_dir)
 
-            file_name = hashlib.sha224(url).hexdigest()
+            file_name = hashlib.sha1(url).hexdigest()
             file_path = os.path.join(storage_dir, file_name)
 
             with open(file_path, 'w') as f:
