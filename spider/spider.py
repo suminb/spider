@@ -46,7 +46,7 @@ class FetchTask:
             raw_content = req.text
 
         except Exception as e:
-            logger.exception(e)
+            self.logger.exception(e)
 
         succeeded = True
 

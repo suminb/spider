@@ -72,9 +72,6 @@ def fetch_url(args):
                 url_entry = task.run(db, opts)
                 request_succeeded = 1
 
-                sys.stdout.write('+' if request_succeeded != 0 else '-')
-                sys.stdout.flush()
-
                 storage.save(url, url_entry, opts)
 
                 if has_url:
@@ -96,6 +93,11 @@ def fetch_url(args):
             except Exception as e:
                 logger.exception(e)
                 db.delete_url(url)
+
+            finally:
+                sys.stdout.write('+' if request_succeeded != 0 else '-')
+                sys.stdout.flush()
+
 
         # number of bytes of the fetched url_entry
         fetched_size = len(url_entry.content) if url_entry != None and url_entry.content != None else 0
