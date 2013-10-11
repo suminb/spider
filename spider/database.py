@@ -69,7 +69,7 @@ class Database:
 
     @property
     def fetched_url_count(self):
-        row = self.fetch_one("SELECT COUNT(url) FROM document WHERE last_fetched IS NOT NULL")
+        row = self.fetch_one("SELECT COUNT(url) FROM document WHERE timestamp IS NOT NULL")
 
         return row[0] if row != None else 0
 
@@ -81,7 +81,7 @@ class Database:
 
     def fetched_url(self, url):
         """Indicates if the url is already fetched."""
-        row = self.fetch_one("SELECT * FROM document WHERE url=? AND last_fetched IS NOT NULL", (url,))
+        row = self.fetch_one("SELECT * FROM document WHERE url=? AND timestamp IS NOT NULL", (url,))
 
         return row != None
 
@@ -97,12 +97,12 @@ class Database:
         self.execute("DELETE FROM document WHERE url=?", (url,), commit)
 
     def insert_document(self, document, commit=True):
-        self.execute("INSERT INTO document (url, mime_type, last_fetched) VALUES (?, ?, ?)",
-            (document.url, document.mime_type, document.last_fetched), commit)
+        self.execute("INSERT INTO document (url, mime_type, timestamp) VALUES (?, ?, ?)",
+            (document.url, document.mime_type, document.timestamp), commit)
 
     def update_document(self, document, commit=True):
-        self.execute("UPDATE document SET mime_type=?, last_fetched=? WHERE url=?",
-            (document.mime_type, document.last_fetched, document.url), commit)
+        self.execute("UPDATE document SET mime_type=?, timestamp=? WHERE url=?",
+            (document.mime_type, document.timestamp, document.url), commit)
 
     def fetch_document(self, url):
         from spider import Document
@@ -116,7 +116,7 @@ class Database:
 
     def mark_as_fetched(self, document, commit=True):
         from datetime import datetime
-        self.execute("UPDATE document SET last_fetched=? WHERE url=?",
+        self.execute("UPDATE document SET timestamp=? WHERE url=?",
             (datetime.now(), document.url), commit)
 
     def export(self):

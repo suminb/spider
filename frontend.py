@@ -1,49 +1,38 @@
-from database import Database
-from proxy import Proxy
 from spider import Document, FetchTask
+from spider.database import Database
+from hallucination import ProxyFactory
 
-#import curses
-import threading
 import getopt
-import sys
-import os
 import time
+import sys, os
+import logging
 
-# FIXME: Temporary
-def load_proxy_list(file_name):
-    import re
-    with open(file_name) as f:
-        return re.findall(r"(https?):\/\/([0-9a-z\.]+):(\d+)", f.read())
+logger = logging.getLogger('spider')
+logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.setLevel(logging.INFO)
 
-proxy_list = load_proxy_list("proxy_list.txt")
-
-# FIXME: Temporary
-lock = threading.Lock()
-
-# FIXME: Temporary
-status = {'processed_urls_count':0, "fetched_size":0}
-
-# FIXME: Temporary
-# Status infor per thread
-thread_status = {}
-
-# FIXME: Temporary
-def fetch_unfetched_urls(limit, opts):
-    with Database(opts["db_path"]) as db:
-        curs = db.cursor
-        curs.execute("SELECT url FROM document WHERE last_fetched IS NULL LIMIT ?", (int(limit),))
-        
-        return map(lambda u: u[0], curs.fetchall())
+proxy_factory = ProxyFactory(
+    config=dict(db_uri=os.environ['DB_URI']),
+    logger=logger,
+)
 
 
 def reduce_report(row1, row2):
     # Assuming row1 and row2 have share the same keys
-
     r = {}
     for key in row1:
         r[key] = row1[key] + row2[key]
 
     return r
+
+
+# FIXME: Temporary
+def fetch_unfetched_urls(limit, opts):
+    with Database(opts["db_path"]) as db:
+        curs = db.cursor
+        curs.execute("SELECT url FROM document WHERE timestamp IS NULL LIMIT ?", (int(limit),))
+        
+        return map(lambda u: u[0], curs.fetchall())
 
 
 def fetch_url(args):
@@ -57,82 +46,49 @@ def fetch_url(args):
     # thread ID
     tid = thread.get_ident()
 
-    # randomly choose a proxy server
-    pxy = random.choice(proxy_list)
-    proxy = Proxy(pxy[0], pxy[1], pxy[2])
-
-    lock.acquire()
-    if not tid in thread_status:
-        thread_status[tid] = {
-                "url":None,
-                "proxy":None,
-                "message":None,
-                "succeeded":0,
-                "new_urls_count":0,
-                "fetched_size":0
-        }
-
-    # URL currently being fetched
-    thread_status[tid]["url"] = url
-    thread_status[tid]["proxy"] = proxy
-    thread_status[tid]["message"] = None
-    lock.release()
-
     with contextlib.nested(Database(opts["db_path"]), open(opts["log_path"], "a")) as (db, log):
-        document = db.fetch_document(url)
-        has_url = (document != None)
+        url_entry = db.fetch_document(url)
+        has_url = (url_entry != None)
 
         request_succeeded = 0
-        new_urls_count = 0        
+        new_urls_count = 0
 
-        if document == None or document.content == None:
-            log.write("[%x] Fetching %s via %s\n" % (tid, url, proxy))
+        fetch_flag = True
+        if has_url:
+            # TODO: Check if timestamp was too long time ago
+            pass
+
+        if not fetch_flag:
+            log.write("URL entry (%s) already exists. Skipping..." % url)
+        else:
             task = FetchTask(url)
+            task.proxy_factory = proxy_factory
             try:
-                document = task.run(proxy, db, opts)
+                url_entry = task.run(db, opts)
                 request_succeeded = 1
 
                 if has_url:
-                    db.update_document(document)
+                    db.update_document(url_entry)
                 else:
-                    db.insert_document(document)
+                    db.insert_document(url_entry)
 
-                for url_pattern in opts["url_patterns"]:
-                    urls = document.extract_urls(url_pattern)
-                    new_urls_count += len(urls)
-                    db.insert_urls(urls)
-                log.write("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
+                if 'url_patterns' in opts:
+                    for url_pattern in opts["url_patterns"]:
+                        urls = url_entry.extract_urls(url_pattern)
+                        new_urls_count += len(urls)
+                        db.insert_urls(urls)
+                    log.write("[%x] Found %d URLs in %s.\n" % (tid, new_urls_count, url))
 
-            except urllib2.URLError as e:
-                log.write("URLError has been raised. Probably a proxy problem (%s).\n" % proxy)
-                #print e
-                #thread_status[tid]['message'] = "URLError has been raised. Probably a proxy problem (%s)" % proxy
 
-            except urllib2.HTTPError as e:
-                log.write("HTTP error has occoured. Deleting url %s\n" % url)
-                #thread_status[tid]['message'] = "HTTP error has occoured. Deleting url %s" % url
-                db.delete_url(url)
+                if "process_content" in opts:
+                    opts["process_content"](url_entry)
 
             except Exception as e:
-                log.write("Unclassified exception has occured: %s\n" % e)
-                print e
-                #thread_status[tid]['message'] = "Unclassified exception has occured: %s" % e
+                logger.exception(e)
+                db.delete_url(url)
 
-        # number of bytes of the fetched document
-        fetched_size = len(document.content) if document != None and document.content != None else 0
-
-        lock.acquire()
-        status["processed_urls_count"] += 1
-        status["fetched_size"] += fetched_size
-        thread_status[tid]['new_urls_count'] = new_urls_count
-
-        sys.stdout.write("\rFeteching %d of %d (%s)..." % (
-            status["processed_urls_count"],
-            opts["n_urls"],
-            ReportMode.human_readable_size(status["fetched_size"])))
-        sys.stdout.flush()
-    
-        lock.release()
+        # number of bytes of the fetched url_entry
+        fetched_size = len(url_entry.content) if url_entry != None and url_entry.content != None else 0
 
         return {"count": 1,
                 "succeeded": request_succeeded,
@@ -150,12 +106,6 @@ class Frontend:
 
     def run(self):
         raise Exception("Not implemented")
-
-    def prepare_curses(self):
-        self.screen = curses.initscr()
-
-    def cleanup_curses(self):
-        curses.endwin()
 
 
 class SingleMode(Frontend):
@@ -270,7 +220,7 @@ class ReportMode(Frontend):
     def generate_report(db_path, session_report=None, opts=None):
         """Prints out a status report to standard output. This function may be called from outside this class."""
         
-        from database import Database
+        from spider.database import Database
 
         with Database(db_path) as db:
             url_count = db.url_count
@@ -283,7 +233,6 @@ class ReportMode(Frontend):
                 print "  Number of successful fetches: %s" % session_report["succeeded"]
                 print "  Time elapsed: %.03f sec" % session_report["time_elapsed"]
                 print "  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"])
-                print "  Live proxy hit ratio: %.02f%%" % (100.0 * session_report["succeeded"] / session_report["count"])
                 print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
                 print "  Number of newly found URLs: %d" % session_report['new_urls_count']
 
@@ -294,6 +243,7 @@ class ReportMode(Frontend):
             if url_count > 0:
                 print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
                 print "  Database file size: %s" % ReportMode.human_readable_size(os.path.getsize(db_path))
+
 
 
 def parse_args(args):
@@ -336,6 +286,7 @@ def parse_args(args):
 
     return opts
 
+
 def validate_runtime_options(opts):
     if "run_mode" not in opts:
         return (False, "Run mode is not specified")
@@ -369,6 +320,7 @@ def validate_runtime_options(opts):
             return (True, "")
 
     return (False, "Unclassified error")
+
 
 def main():
     opts = parse_args(sys.argv[1:])

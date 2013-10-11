@@ -3,31 +3,11 @@
 --
 
 CREATE TABLE document (
-	url VARCHAR(255),
-	mime_type VARCHAR(255),
-	last_fetched TIMESTAMP,
-	proxy_id INTEGER,
-	content TEXT,
-	PRIMARY KEY (url)
+    url VARCHAR(255),
+    mime_type VARCHAR(255),
+    size INTEGER,
+    timestamp TIMESTAMP,
+    content TEXT,
+    PRIMARY KEY (url)
 );
-CREATE INDEX last_fetched ON document (last_fetched);
-
-CREATE TABLE proxy (
-	id INTEGER PRIMARY KEY,
-	protocol VARCHAR(16),
-	address VARCHAR(255),
-	port INTEGER,
-	last_used TIMESTAMP,
-	response_time INTEGER,
-	status INTEGER,
-	UNIQUE (protocol, address, port)
-);
-
-CREATE TABLE proxy_log (
-	pid INTEGER,
-	`timestamp` TIMESTAMP,
-	response_time INTEGER,
-	status INTEGER,
-	details TEXT,
-	FOREIGN KEY (pid) REFERENCES proxy(id)
-);
+CREATE INDEX timestamp ON document (timestamp);
