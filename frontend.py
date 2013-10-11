@@ -267,6 +267,8 @@ class ProfileMode(Frontend):
 def parse_args(args):
     optlist, args = getopt.getopt(args, "u:n:t:d:p:smag", ("create-db", "single", "generate-report", "auto"))
 
+    opts = {}
+
     for o, a in optlist:
         if o == '-n':
             opts["n_urls"] = int(a)
