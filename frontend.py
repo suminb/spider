@@ -11,11 +11,7 @@ logger = logging.getLogger('spider')
 logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.INFO)
 
-proxy_factory = ProxyFactory(
-    config=dict(db_uri=os.environ['DB_URI']),
-    logger=logger,
-)
-
+proxy_factory = None
 
 def reduce_report(row1, row2):
     # Assuming row1 and row2 have share the same keys
@@ -154,32 +150,6 @@ class MultiThreadingMode(Frontend):
         ReportMode.generate_report(self.opts["db_path"], report, self.opts)
 
 
-class AutomaticMode(Frontend):
-    def __int__(self, opts):
-        super(Frontend, self).__init__(opts)
-
-    def run(self):
-        # If there is nothing to fetch, exit
-        # Figure out # of URLs to fetch
-        # Figure out optimal # of threads
-        # Continuously run multithreading mode
-        
-        profile = __import__(self.opts["profile"])
-
-        # TODO: Any better way to handle this?
-        self.opts["n_urls"] = profile.URLS
-        self.opts["n_proc"] = profile.THREADS
-        self.opts["db_path"] = profile.DB_URI
-        self.opts["url_patterns"] = profile.URL_PATTERNS
-        self.opts["process_content"] = profile.process_content
-
-        with Database(self.opts["db_path"]) as db:
-            db.insert_urls(profile.ENTRY_POINTS)
-
-        multimode = MultiThreadingMode(self.opts)
-        multimode.run()
-
-
 class CreateDBMode(Frontend):
     def __int__(self, opts):
         super(Frontend, self).__init__(opts)
@@ -245,9 +215,38 @@ class ReportMode(Frontend):
                 print "  Database file size: %s" % ReportMode.human_readable_size(os.path.getsize(db_path))
 
 
+class ProfileMode(Frontend):
+    def __init__(self, opts):
+        #super(ProfileMode, self).__init__(opts)
+        Frontend.__init__(self, opts)
+
+        # If there is nothing to fetch, exit
+        # Figure out # of URLs to fetch
+        # Figure out optimal # of threads
+        # Continuously run multithreading mode
+        
+        profile = __import__(self.opts['profile'])
+
+        # TODO: Any better way to handle this?
+        self.opts['n_urls'] = profile.URLS
+        self.opts['n_proc'] = profile.THREADS
+        self.opts['db_path'] = profile.DB_URI
+        self.opts['url_patterns'] = profile.URL_PATTERNS
+        self.opts['storage_dir'] = profile.STORAGE_DIR
+        self.opts['process_content'] = profile.process_content
+        self.opts['hallucination_db_uri'] = profile.HALLUCINATION_DB_URI
+
+        with Database(self.opts['db_path']) as db:
+            db.insert_urls(profile.ENTRY_POINTS)
+        
+
+    def run(self):
+        multimode = MultiThreadingMode(self.opts)
+        multimode.run()
+
 
 def parse_args(args):
-    optlist, args = getopt.getopt(args, "u:n:t:d:f:smag", ("create-db", "single", "generate-report", "auto"))
+    optlist, args = getopt.getopt(args, "u:n:t:d:p:smag", ("create-db", "single", "generate-report", "auto"))
     
     # default values
     opts = {"log_path":"spider.log"}
@@ -265,8 +264,9 @@ def parse_args(args):
         elif o in ("-u", "--url"):
             opts["url"] = a
 
-        elif o == "-f":
-            opts["profile"] = a
+        elif o == '-p':
+            opts['run_mode'] = 'profile'
+            opts['profile'] = a
 
         elif o == "--create-db":
             opts["run_mode"] = "create_db"
@@ -313,9 +313,9 @@ def validate_runtime_options(opts):
         else:
             return (True, "")
 
-    elif (opts["run_mode"] == "auto"):
+    elif (opts["run_mode"] == "profile"):
         if ("profile" not in opts):
-            return (False, "Specify a profile to run (-f)")
+            return (False, "Specify a profile to run (-p)")
         else:
             return (True, "")
 
@@ -328,17 +328,24 @@ def main():
     valid, message = validate_runtime_options(opts)
 
     if valid:
-        run_mode = opts["run_mode"]
+        run_mode = opts['run_mode']
 
         fc = {
-            "create_db": CreateDBMode,
-            "single": SingleMode,
-            "multithreading": MultiThreadingMode,
-            "auto": AutomaticMode,
-            "generate_report": ReportMode,
+            'create_db': CreateDBMode,
+            'single': SingleMode,
+            'multithreading': MultiThreadingMode,
+            'generate_report': ReportMode,
+            'profile': ProfileMode,
         }
 
         fend = fc[run_mode](opts)
+
+        global proxy_factory
+        proxy_factory = ProxyFactory(
+            config=dict(db_uri=fend.opts['hallucination_db_uri']),
+            logger=logger,
+        )
+
         fend.run()
 
     else:
