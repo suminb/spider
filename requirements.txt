@@ -1,5 +1,5 @@
 hallucination
-testify
+pytest
 beautifulsoup4
 psycopg2
 requests
