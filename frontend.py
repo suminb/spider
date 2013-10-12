@@ -217,22 +217,22 @@ class ReportMode(Frontend):
             fetched_url_count = db.fetched_url_count
 
             if session_report != None and ("count" in session_report):
-                print
-                print "-[ Spider Report: This session ]------------------------------------"
-                print "  Number of fetch requests sent out: %d" % session_report["count"]
-                print "  Number of successful fetches: %s" % session_report["succeeded"]
-                print "  Time elapsed: %.03f sec" % session_report["time_elapsed"]
-                print "  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"])
-                print "  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size'])
-                print "  Number of newly found URLs: %d" % session_report['new_urls_count']
+                print()
+                print("-[ Spider Report: This session ]------------------------------------")
+                print("  Number of fetch requests sent out: %d" % session_report["count"])
+                print("  Number of successful fetches: %s" % session_report["succeeded"])
+                print("  Time elapsed: %.03f sec" % session_report["time_elapsed"])
+                print("  Fetching speed: %.03f pages/sec" % (session_report["succeeded"] / session_report["time_elapsed"]))
+                print("  Total size of fetched documents: %s" % ReportMode.human_readable_size(session_report['fetched_size']))
+                print("  Number of newly found URLs: %d" % session_report['new_urls_count'])
 
-            print
-            print "-[ Spider Report: Overall summary ]------------------------------------"
-            print "  Total number of URLs: %d" % url_count
-            print "  Number of fetched URLs: %d" % fetched_url_count
+            print()
+            print("-[ Spider Report: Overall summary ]------------------------------------")
+            print("  Total number of URLs: %d" % url_count)
+            print("  Number of fetched URLs: %d" % fetched_url_count)
             if url_count > 0:
-                print "  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count)
-                print "  Database file size: %s" % ReportMode.human_readable_size(os.path.getsize(db_path))
+                print("  Progress: %.02f%%" % (100.0 * fetched_url_count / url_count))
+                print("  Database file size: %s" % ReportMode.human_readable_size(os.path.getsize(db_path)))
 
 
 class ProfileMode(Frontend):
