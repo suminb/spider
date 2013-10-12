@@ -1,6 +1,5 @@
 from spider import Document, FetchTask, Storage
 from spider.database import Database
-from hallucination import ProxyFactory
 
 import getopt
 import time
@@ -134,7 +133,7 @@ class SingleMode(Frontend):
         report = fetch_url((self.opts["url"], self.opts))
 
         # print an empty line after the execution
-        print
+        print()
 
         end_time = time.time()
         report["time_elapsed"] = end_time - start_time # in seconds
@@ -273,73 +272,73 @@ def parse_args(args):
 
     for o, a in optlist:
         if o == '-n':
-            opts["n_urls"] = int(a)
+            opts['n_urls'] = int(a)
 
         elif o == '-t':
-            opts["n_proc"] = int(a)
+            opts['n_proc'] = int(a)
 
         elif o == '-d':
-            opts["db_path"] = a
+            opts['db_path'] = a
 
-        elif o in ("-u", "--url"):
-            opts["url"] = a
+        elif o in ('-u', '--url'):
+            opts['url'] = a
 
         elif o == '-p':
             opts['run_mode'] = 'profile'
             opts['profile'] = a
 
-        elif o == "--create-db":
-            opts["run_mode"] = "create_db"
+        elif o == '--create-db':
+            opts['run_mode'] = 'create_db'
 
-        elif o in ("-s", "--single"):
-            opts["run_mode"] = "single"
-            opts["n_urls"] = 1
+        elif o in ('-s', '--single'):
+            opts['run_mode'] = 'single'
+            opts['n_urls'] = 1
 
-        elif o in ("-m", "--multithreading"):
-            opts["run_mode"] = "multithreading"
+        elif o in ('-m', '--multithreading'):
+            opts['run_mode'] = 'multithreading'
 
-        elif o in ("-a", "--auto"):
-            opts["run_mode"] = "auto"
+        elif o in ('-a', '--auto'):
+            opts['run_mode'] = 'auto'
 
-        elif o in ("-g", "--generate-report"):
-            opts["run_mode"] = "generate_report"
+        elif o in ('-g', '--generate-report'):
+            opts['run_mode'] = 'generate_report'
 
     return opts
 
 
 def validate_runtime_options(opts):
-    if "run_mode" not in opts:
-        return (False, "Run mode is not specified")
+    if 'run_mode' not in opts:
+        return (False, 'Run mode is not specified')
 
-    elif (opts["run_mode"] == "create_db"):
-        if ("db_path" not in opts):
-            return (False, "SQLite3 database path must be supplied (-d)")
+    elif (opts['run_mode'] == 'create_db'):
+        if ('db_path' not in opts):
+            return (False, 'SQLite3 database path must be supplied (-d)')
         else:
-            return (True, "")
+            return (True, '')
 
-    elif (opts["run_mode"] == "single") and ("db_path" in opts) and ("url" in opts):
-        return (True, "")
+    elif (opts['run_mode'] == 'single') and ('db_path' in opts) and ('url' in opts):
+        return (True, '')
 
-    elif (opts["run_mode"] == "multithreading"):
-        if ("db_path" not in opts):
-            return (False, "SQLite3 database path must be supplied (-d)")
+    elif (opts['run_mode'] == 'multithreading'):
+        if ('db_path' not in opts):
+            return (False, 'SQLite3 database path must be supplied (-d)')
 
-        elif ("n_urls" not in opts):
-            return (False, "Specify the number of URLs to fetch (-n)")
+        elif ('n_urls' not in opts):
+            return (False, 'Specify the number of URLs to fetch (-n)')
 
-        elif ("n_proc" not in opts):
-            return (False, "Specify the number of threads (-t)")
+        elif ('n_proc' not in opts):
+            return (False, 'Specify the number of threads (-t)')
 
         else:
-            return (True, "")
+            return (True, '')
 
-    elif (opts["run_mode"] == "profile"):
-        if ("profile" not in opts):
-            return (False, "Specify a profile to run (-p)")
+    elif (opts['run_mode'] == 'profile'):
+        if ('profile' not in opts):
+            return (False, 'Specify a profile to run (-p)')
         else:
-            return (True, "")
+            return (True, '')
 
-    return (False, "Unclassified error")
+    return (False, 'Unclassified error')
 
 
 def main():
@@ -360,6 +359,7 @@ def main():
 
         fend = fc[run_mode](opts)
 
+        from hallucination import ProxyFactory
         global proxy_factory
         proxy_factory = ProxyFactory(
             config=dict(db_uri=fend.opts['hallucination_db_uri']),
@@ -369,7 +369,7 @@ def main():
         fend.run()
 
     else:
-        sys.stderr.write(message + "\n")
+        sys.stderr.write(message + '\n')
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
