@@ -50,7 +50,8 @@ class FetchTask:
 
         succeeded = True
 
-        document = Document(url, None, datetime.datetime.now(), raw_content)
+        document = Document(url, req.headers['content-type'],
+            datetime.datetime.now(), raw_content)
 
         if db != None:
             db.mark_as_fetched(document)

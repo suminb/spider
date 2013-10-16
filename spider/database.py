@@ -98,12 +98,12 @@ class Database:
         self.execute("DELETE FROM document WHERE url=?", (url,), commit)
 
     def insert_document(self, document, commit=True):
-        self.execute("INSERT INTO document (url, mime_type, timestamp) VALUES (?, ?, ?)",
-            (document.url, document.mime_type, document.timestamp), commit)
+        self.execute("INSERT INTO document (url, mime_type, timestamp, content) VALUES (?, ?, ?, ?)",
+            (document.url, document.mime_type, document.timestamp, document.content), commit)
 
     def update_document(self, document, commit=True):
-        self.execute("UPDATE document SET mime_type=?, timestamp=? WHERE url=?",
-            (document.mime_type, document.timestamp, document.url), commit)
+        self.execute("UPDATE document SET mime_type=?, timestamp=?, content=? WHERE url=?",
+            (document.mime_type, document.timestamp, document.content, document.url), commit)
 
     def fetch_document(self, url):
         from spider import Document

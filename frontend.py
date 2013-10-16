@@ -13,7 +13,7 @@ handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-proxy_factory = None
+fend = None
 
 def reduce_report(row1, row2):
     # Assuming row1 and row2 have share the same keys
@@ -109,8 +109,10 @@ def fetch_url(args):
 
 
 class Frontend:
-    def __init__(self, opts):
+    def __init__(self, opts, logger=logging):
         self.opts = opts
+        self.logger = logger
+        self.proxy_factory = None
 
         # Default values
         if not 'log_path' in opts:
@@ -124,8 +126,8 @@ class Frontend:
 
 
 class SingleMode(Frontend):
-    def __int__(self, opts):
-        super(Frontend, self).__init__(opts)
+    def __int__(self, opts, logger):
+        super(Frontend, self).__init__(opts, logger)
 
     def run(self):
         start_time = time.time()
@@ -142,12 +144,16 @@ class SingleMode(Frontend):
 
 
 class MultiThreadingMode(Frontend):
-    def __int__(self, opts):
-        super(Frontend, self).__init__(opts)
-        #super(Frontend, self).prepare_curses()
+    def __int__(self, opts, logger):
+        super(Frontend, self).__init__(opts, logger)
+
+        from hallucination import ProxyFactory
+        self.proxy_factory = ProxyFactory(
+            config=dict(db_uri=opts['hallucination_db_uri']),
+            logger=logger,
+        )
 
     def __del__(self):
-        #super(Frontend, self).cleanup_curses()
         pass
 
     def run(self):
@@ -170,8 +176,8 @@ class MultiThreadingMode(Frontend):
 
 
 class CreateDBMode(Frontend):
-    def __int__(self, opts):
-        super(Frontend, self).__init__(opts)
+    def __int__(self, opts, logger):
+        super(Frontend, self).__init__(opts, logger)
 
     def run(self):
         with Database(self.opts["db_path"], logger=logger) as db:
@@ -182,8 +188,8 @@ class CreateDBMode(Frontend):
 
 
 class ReportMode(Frontend):
-    def __int__(self, opts):
-        super(Frontend, self).__init__(opts)
+    def __int__(self, opts, logger):
+        super(Frontend, self).__init__(opts, logger)
 
     def run(self):
         if "db_path" not in self.opts:
@@ -235,9 +241,9 @@ class ReportMode(Frontend):
 
 
 class ProfileMode(Frontend):
-    def __init__(self, opts):
-        #super(ProfileMode, self).__init__(opts)
-        Frontend.__init__(self, opts)
+    def __init__(self, opts, logger):
+        #super(ProfileMode, self).__init__(opts, logger)
+        Frontend.__init__(self, opts, logger)
 
         # If there is nothing to fetch, exit
         # Figure out # of URLs to fetch
@@ -261,7 +267,7 @@ class ProfileMode(Frontend):
         
 
     def run(self):
-        multimode = MultiThreadingMode(self.opts)
+        multimode = MultiThreadingMode(self.opts, logger)
         multimode.run()
 
 
@@ -357,15 +363,8 @@ def main():
             'profile': ProfileMode,
         }
 
-        fend = fc[run_mode](opts)
-
-        from hallucination import ProxyFactory
-        global proxy_factory
-        proxy_factory = ProxyFactory(
-            config=dict(db_uri=fend.opts['hallucination_db_uri']),
-            logger=logger,
-        )
-
+        global fend
+        fend = fc[run_mode](opts, logger=logger)
         fend.run()
 
     else:
