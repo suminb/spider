@@ -66,7 +66,7 @@ def fetch_url(args):
         else:
 
             task = FetchTask(url, logger=logger)
-            task.proxy_factory = proxy_factory
+            task.proxy_factory = fend.proxy_factory
             try:
                 url_entry = task.run(db, opts)
                 request_succeeded = 1
