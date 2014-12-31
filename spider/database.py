@@ -106,7 +106,7 @@ class Database:
             (document.mime_type, document.timestamp, document.content, document.url), commit)
 
     def fetch_document(self, url):
-        from spider import Document
+        from . import Document
         
         row = self.fetch_one("SELECT * FROM document WHERE url=?", (url,))
 

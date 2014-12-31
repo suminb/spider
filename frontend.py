@@ -1,5 +1,4 @@
 from spider import Document, FetchTask, Storage
-from spider.database import Database
 
 import getopt
 import time
@@ -26,20 +25,21 @@ def reduce_report(row1, row2):
 
 # FIXME: Temporary
 def fetch_unfetched_urls(limit, opts):
+    from spider.database import Database
     with Database(opts["db_path"], logger=logger) as db:
         curs = db.cursor
         curs.execute("SELECT url FROM document WHERE timestamp IS NULL LIMIT ?", (int(limit),))
-        
+
         return map(lambda u: u[0], curs.fetchall())
 
 
 def fetch_url(args):
     url, opts = args
 
-    import urllib2
     import random
     import thread
     import contextlib
+    from spider.database import Database
 
     # thread ID
     tid = thread.get_ident()
@@ -184,6 +184,7 @@ class CreateDBMode(Frontend):
         super(Frontend, self).__init__(opts, logger)
 
     def run(self):
+        from spider.database import Database
         with Database(self.opts["db_path"], logger=logger) as db:
             with open("scheme.txt") as f:
                 # FIXME: This may break in some cases
@@ -205,7 +206,7 @@ class ReportMode(Frontend):
     def human_readable_size(size):
         if size < 1024:
             return "%d bytes" % size
-        
+
         elif size < 1024**2:
             return "%.02f KB" % (float(size) / 1024)
 
@@ -218,7 +219,7 @@ class ReportMode(Frontend):
     @staticmethod
     def generate_report(db_path, session_report=None, opts=None):
         """Prints out a status report to standard output. This function may be called from outside this class."""
-        
+
         from spider.database import Database
 
         with Database(db_path, logger=logger) as db:
@@ -253,7 +254,7 @@ class ProfileMode(Frontend):
         # Figure out # of URLs to fetch
         # Figure out optimal # of threads
         # Continuously run multithreading mode
-        
+
         profile = __import__(self.opts['profile'])
 
         # TODO: Any better way to handle this?
@@ -266,9 +267,10 @@ class ProfileMode(Frontend):
         self.opts['hallucination_db_uri'] = profile.HALLUCINATION_DB_URI
         self.opts['user_agent'] = profile.USER_AGENT
 
+        from spider.database import Database
+
         with Database(self.opts['db_path'], logger=logger) as db:
             db.insert_urls(profile.ENTRY_POINTS)
-        
 
     def run(self):
         multimode = MultiThreadingMode(self.opts, logger)

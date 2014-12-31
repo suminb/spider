@@ -21,4 +21,4 @@ def make_absolute_url(base_url, relative_url):
 
 if __name__ == "__main__":
     # simple use cases
-    print make_absolute_url("http://test.com/foo/bar/", "../adsf/qwer/zxcv")
+    print(make_absolute_url("http://test.com/foo/bar/", "../adsf/qwer/zxcv"))
