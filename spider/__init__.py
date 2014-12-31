@@ -1,6 +1,6 @@
 
 __author__ = 'Sumin Byeon'
-__version__ = '0.9.1'
+__version__ = '0.10.0'
 
 from .database import Database
 from threading import Thread
@@ -11,14 +11,13 @@ import re
 import datetime
 import time
 import requests
-import logging
 
 
 class FetchTask:
     USER_AGENT = 'Spider v%s' % __version__
     REQUEST_TIMEOUT = 10
 
-    def __init__(self, url, logger=logging):
+    def __init__(self, url, logger):
         self.url = url
         self.proxy_factory = None
         self.logger = logger
@@ -27,10 +26,9 @@ class FetchTask:
         if 'user_agent' in opts:
             self.USER_AGENT = opts['user_agent']
 
-        return FetchTask.fetch_url(self.url, self.proxy_factory, db, opts)
+        return self.fetch_url(self.url, self.proxy_factory, db, opts)
 
-    @staticmethod
-    def fetch_url(url, proxy_factory=None, db=None, opts=None):
+    def fetch_url(self, url, proxy_factory=None, db=None, opts=None):
 
         content = None
         has_url = False
@@ -46,18 +44,17 @@ class FetchTask:
 
             raw_content = req.text
 
+            succeeded = True
+
+            document = Document(url, req.headers['content-type'],
+                datetime.datetime.now(), raw_content)
+
+            if db != None:
+                db.mark_as_fetched(document)
+
+            return document
         except Exception as e:
             self.logger.exception(e)
-
-        succeeded = True
-
-        document = Document(url, req.headers['content-type'],
-            datetime.datetime.now(), raw_content)
-
-        if db != None:
-            db.mark_as_fetched(document)
-
-        return document
 
 
 class URL:

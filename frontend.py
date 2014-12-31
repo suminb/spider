@@ -1,17 +1,12 @@
 from spider import Document, FetchTask, Storage
-
+from logbook import Logger
 import getopt
 import time
 import sys, os
 import logging
 
-logger = logging.getLogger('spider')
-handler = logging.FileHandler('spider.log')
-handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-#logger.addHandler(logging.StreamHandler(sys.stdout))
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
+logger = Logger('Spider')
 fend = None
 
 def reduce_report(row1, row2):
@@ -126,7 +121,7 @@ class Frontend:
         self.shared = {}
 
     def run(self):
-        raise Exception("Not implemented")
+        raise NotImplementedError()
 
 
 class SingleMode(Frontend):
@@ -135,6 +130,9 @@ class SingleMode(Frontend):
 
     def run(self):
         start_time = time.time()
+
+        # FIXME: This is a temporary solution
+        self.opts['storage_dir'] = './storage'
 
         report = fetch_url((self.opts["url"], self.opts))
 

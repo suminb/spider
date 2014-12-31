@@ -3,3 +3,4 @@ pytest
 beautifulsoup4
 psycopg2
 requests
+logbook
